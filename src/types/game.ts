@@ -91,6 +91,11 @@ export interface GameState {
 
   threat: null | { id: string; power: number; weeksLeft: number; prepBonus: number };
 
+  /** 동시 1개 퀘스트 (§16.1). 기한·실패 없음. 붕괴 시 초기화. */
+  activeQuest: { questId: string; patronId: string; progress: Record<string, number>; acceptedTurn: number } | null;
+  /** 이번 주 교역 사용량(금화 상당). 매 턴 0으로 초기화 (§16.4 주간 한도). */
+  weeklyTradeUsed: number;
+
   chronicle: ChronicleEntry[]; // 최근 200개만 유지
   counters: {
     explores: number;

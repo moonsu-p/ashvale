@@ -11,8 +11,11 @@ import { CompanionImages } from './CompanionImages';
 import { FACTION_NAME, FACTION_STAGE_NAME, factionStage } from '@/data/factions';
 import { TRUST_STAGE_NAME, trustStage, PRESET_PATRONS } from '@/data/patrons';
 import { GIFT_HINT_AFFINITY } from '@/data/relationships';
+import { GIFT_ITEMS } from '@/data/gifts';
 import { useGameStore } from '@/store/useGameStore';
 import { affinityTier, canGift } from '@/systems/relationships';
+import { giftAvailable } from '@/systems/gifts';
+import { toneLabel } from '@/systems/dialogueEvents';
 import type { FactionId, GameState } from '@/types/game';
 
 const TIER_LABEL: Record<string, string> = { stranger: '낯선 사이', ally: '아는 사이', friend: '벗', lover: '연인' };
@@ -36,7 +39,7 @@ function DialogueLine() {
 export function PeoplePanel({ state }: { state: GameState }) {
   const talkCompanion = useGameStore((s) => s.talkCompanion);
   const talkPatron = useGameStore((s) => s.talkPatron);
-  const giftCompanion = useGameStore((s) => s.giftCompanion);
+  const giftItem = useGameStore((s) => s.giftItem);
 
   const [imagesFor, setImagesFor] = useState<string | null>(null);
   const companions = Object.values(state.companions).filter((c) => c.departedTurn === null);
@@ -68,7 +71,7 @@ export function PeoplePanel({ state }: { state: GameState }) {
         const tier = affinityTier(c.affinity, c.track);
         const hint = c.affinity >= GIFT_HINT_AFFINITY;
         const gift = canGift(state, c.id);
-        const cats = [arch?.likes[0], arch?.dislikes[0], '금화'].filter(Boolean) as string[];
+        const giftables = GIFT_ITEMS.filter((g) => giftAvailable(state, g)).slice(0, 4);
         return (
           <div key={c.id} className="mb-1 border-t pt-1 text-xs" style={{ borderColor: PALETTE.paperDim }}>
             <div className="flex items-center gap-2">
@@ -77,7 +80,7 @@ export function PeoplePanel({ state }: { state: GameState }) {
                 {c.name} <span style={{ color: PALETTE.inkSoft }}>· {arch?.label}</span>
               </span>
               <span className="ml-auto tabular-nums">
-                호감 {c.affinity} <span style={{ color: PALETTE.inkSoft }}>{TIER_LABEL[tier]}</span>
+                호감 {c.affinity} <span style={{ color: PALETTE.inkSoft }}>{TIER_LABEL[tier]} · {toneLabel(state, c.id)}{c.track ? (c.track === 'romance' ? ' · 연심' : ' · 우애') : ''}</span>
               </span>
               <button
                 onClick={() => setImagesFor(imagesFor === c.id ? null : c.id)}
@@ -96,16 +99,16 @@ export function PeoplePanel({ state }: { state: GameState }) {
               >
                 교류
               </button>
-              {cats.map((cat) => (
+              {giftables.map((item) => (
                 <button
-                  key={cat}
-                  onClick={() => void giftCompanion(c.id, cat)}
+                  key={item.id}
+                  onClick={() => void giftItem(c.id, item.id)}
                   disabled={!gift}
                   className="rounded px-2 py-0.5"
                   style={{ background: gift ? PALETTE.wood : PALETTE.stone, color: PALETTE.paper, opacity: gift ? 1 : 0.5 }}
                 >
-                  {cat}
-                  {hint && arch?.likes.includes(cat) ? '♥' : ''}
+                  {item.label}
+                  {hint && arch?.likes.includes(item.category) ? '♥' : ''}
                 </button>
               ))}
               {!gift && <span style={{ color: PALETTE.inkSoft }}>선물 쿨다운</span>}

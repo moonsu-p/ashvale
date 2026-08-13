@@ -24,6 +24,8 @@ import { checkRegionUnlocks } from './regions';
 import { applyLevelUps } from './levels';
 import { resolveExplore, applyExploreOutcome } from './explore';
 import { applyTalkCompanion, applyTalkPatron, checkPeopleAppearances } from './relationships';
+import { recordExploreSuccess } from './quests';
+import { REGIONS } from '@/data/explore';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import {
   FOOD_PER_POP,
@@ -42,7 +44,7 @@ import {
 
 export type TurnAction =
   | { kind: 'rest' }
-  | { kind: 'explore'; regionId: string }
+  | { kind: 'explore'; regionId: string; escortId?: string | null }
   | { kind: 'talk'; target: 'companion' | 'patron'; id: string };
 
 export interface TurnResult {
@@ -69,8 +71,11 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   if (action.kind === 'explore') {
     // 탐험 판정은 별도 시드(재현·연출 일치용). 세계 이벤트 rng 스트림과 분리한다.
     const exploreRng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
-    const outcome = resolveExplore(s, action.regionId, exploreRng);
+    const outcome = resolveExplore(s, action.regionId, exploreRng, action.escortId);
     entries.push(...applyExploreOutcome(s, outcome, stamp));
+    // 퀘스트·통찰 대성공 진행 (§16.1)
+    if (outcome.grade === 'success' || outcome.grade === 'triumph') recordExploreSuccess(s, action.regionId);
+    if (outcome.triumph && REGIONS[action.regionId]?.stat === 'insight') s.counters.firsts['insightTriumph'] = true;
   } else if (action.kind === 'talk') {
     if (action.target === 'companion') applyTalkCompanion(s, action.id);
     else applyTalkPatron(s, action.id);
@@ -189,6 +194,7 @@ function applyFamine(s: GameState, entries: ChronicleEntry[], stamp: Stamp, rng:
 function advanceWeek(s: GameState): void {
   s.world.turn += 1;
   s.world.week += 1;
+  s.weeklyTradeUsed = 0; // 주간 교역 한도 초기화 (§16.4)
   if (s.world.week > WEEKS_PER_YEAR) {
     s.world.week = 1;
     s.world.year += 1;

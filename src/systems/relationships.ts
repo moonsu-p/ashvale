@@ -6,7 +6,7 @@
 import type { ChronicleEntry, GameState, Season } from '@/types/game';
 import { COMPANION_VOICES, type AffinityTier } from '@/data/content/companion-dialogue';
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
-import { ARCHETYPES, PRESET_COMPANIONS, type ArchetypeEffect } from '@/data/archetypes';
+import { ARCHETYPES, PRESET_COMPANIONS, COMPANION_CAP, type ArchetypeEffect } from '@/data/archetypes';
 import { PRESET_PATRONS, trustStage } from '@/data/patrons';
 import { adjustFaction } from './factions';
 import { unlockedSlotsFor } from '@/data/slots';
@@ -161,6 +161,34 @@ export function companionBonus(s: GameState, kind: ArchetypeEffect['kind']): num
 
 function stamp(s: GameState, season: Season): { year: number; week: number; season: Season } {
   return { year: s.world.year, week: s.world.week, season };
+}
+
+/** 활동 중(떠나지 않은) 관계 대상 수 */
+export function activeCompanionCount(s: GameState): number {
+  return Object.values(s.companions).filter((c) => c.departedTurn === null).length;
+}
+
+/** 새 관계 대상 생성(인물 생성 흐름·§7.7). 상한 8명. 생성한 id 를 돌려준다(초과 시 null). */
+export function createCompanion(s: GameState, archetypeId: string, name: string, origin: 'quest' | 'drifter' | 'referral'): string | null {
+  if (activeCompanionCount(s) >= COMPANION_CAP) return null;
+  const id = crypto.randomUUID();
+  s.companions[id] = {
+    id,
+    archetypeId,
+    name: name.trim() || (ARCHETYPES[archetypeId]?.label ?? '이방인'),
+    affinity: 0,
+    track: null,
+    consecutiveTalks: 0,
+    lastGiftTurn: -GIFT_COOLDOWN_WEEKS,
+    clearedEvents: [],
+    injuredUntilTurn: 0,
+    images: {},
+    unlockedSlots: [0],
+    origin,
+    joinedTurn: s.world.turn,
+    departedTurn: null,
+  };
+  return id;
 }
 
 /** 조건을 만족한 프리셋 관계 대상/의뢰인을 등장시키고 연대기 항목을 돌려준다. */

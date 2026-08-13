@@ -58,6 +58,8 @@ export function createInitialState(
     factions: { ...START_FACTIONS },
 
     threat: null,
+    activeQuest: null,
+    weeklyTradeUsed: 0,
 
     chronicle: [],
     counters: {

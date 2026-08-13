@@ -78,6 +78,7 @@ export function applyCollapse(s: GameState, rng: Rng): ChronicleEntry {
   s.counters.collapses += 1;
   s.counters.foodDeficitStreak = 0;
   s.threat = null;
+  s.activeQuest = null; // 진행 중 퀘스트 초기화 (§16.1)
 
   const season: Season = (Math.floor((s.world.week - 1) / 12) % 4) as Season;
   return {

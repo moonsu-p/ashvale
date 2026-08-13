@@ -5,10 +5,12 @@ import { PortraitFrame } from '@/ui/PortraitFrame';
 import { StorageBanner } from '@/ui/StorageBanner';
 import { GameWarning } from '@/ui/GameWarning';
 import { QuestCard } from '@/ui/QuestCard';
+import { QuestBar } from '@/ui/QuestBar';
 import { SettlementView } from '@/ui/SettlementView';
 import { BottomSheet } from '@/ui/BottomSheet';
 import { Onboarding } from '@/ui/Onboarding';
 import { ExploreOverlay } from '@/ui/ExploreOverlay';
+import { RelationshipOverlays } from '@/ui/RelationshipOverlays';
 import { AssetGallery } from '@/ui/AssetGallery';
 import { PALETTE } from '@/data/palette';
 
@@ -54,6 +56,7 @@ export default function App() {
             <StorageBanner />
             <GameWarning state={state} />
             <QuestCard state={state} />
+            <QuestBar state={state} />
           </>
         }
         map={<SettlementView state={state} />}
@@ -69,6 +72,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <RelationshipOverlays />
     </div>
   );
 }

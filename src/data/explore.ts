@@ -47,3 +47,10 @@ export const DIE_SIDES = 20;
 /** HP 0 이하 → 쓰러진 채 실려 옴 (§6): HP 1, 다음 N주 강제 휴식, 금화 손실 비율 */
 export const DOWNED_WEEKS = 2;
 export const DOWNED_GOLD_LOSS = 0.2;
+
+/** 동행 탐험 (§7.4). 동료(40)부터. 위기 시 부상(교류 불가·호감 하락). */
+export const ESCORT_MIN_AFFINITY = 40;
+export const ESCORT_ROLL_BONUS = 2;
+export const ESCORT_INJURY_WEEKS = 4;
+export const ESCORT_AFFINITY: Record<string, number> = { triumph: 15, success: 8, failure: 5, crisis: -8 };
+export const ESCORT_PATRON_TRUST = 2;

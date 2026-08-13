@@ -30,6 +30,18 @@ export interface Dialogue {
 }
 import { createRng } from '@/systems/rng';
 import { applyCollapse } from '@/systems/collapse';
+import {
+  pendingDialogueEvent, applyDialogueChoice, shouldDeclareTrack, romanceEligible, declareTrack,
+} from '@/systems/dialogueEvents';
+import { offerableQuest, acceptQuest as acceptQuestSys, completeQuest, isQuestComplete } from '@/systems/quests';
+import { questById } from '@/systems/quests';
+import { applySell, applyBuy } from '@/systems/trade';
+import { applyGiftItem } from '@/systems/gifts';
+import { createCompanion, activeCompanionCount } from '@/systems/relationships';
+import { ARCHETYPES, COMPANION_CAP } from '@/data/archetypes';
+import type { DialogueEvent } from '@/data/content/dialogue-events';
+import type { Quest } from '@/data/quests';
+import type { ResourceId } from '@/types/game';
 import { reencodeToWebp, ImageRejected } from '@/images/reencode';
 import { imageKey, unlockedSlotsFor, SLOT_MAP } from '@/data/slots';
 import { DEFAULT_HERO_NAME, DEFAULT_SETTLEMENT_NAME } from '@/data/onboarding';
@@ -53,14 +65,24 @@ interface GameStore {
   pendingExplore: ExploreOutcome | null;
   /** 방금 나눈 대사 — 인물 화면 표시용 */
   lastDialogue: Dialogue | null;
+  /** 대화 사건 오버레이 (§16.3) */
+  pendingDialogueEvent: { companionId: string; event: DialogueEvent } | null;
+  /** 관계 선언(트랙 분기, §7.5) */
+  pendingDeclaration: { companionId: string; romance: boolean } | null;
+  /** 퀘스트 제안 */
+  pendingQuestOffer: { quest: Quest } | null;
+  /** 인물 생성 흐름 (§7.7) */
+  pendingRecruit: { candidates: string[]; source: 'quest' | 'referral' | 'drifter' } | null;
 
   boot: () => Promise<void>;
   startNewGame: (heroName: string, settlementName: string) => Promise<void>;
   newChronicle: (heroName?: string) => Promise<void>;
   dismissBanner: () => void;
 
-  /** 탐험 판정을 계산해 연출 오버레이를 연다(무변이). */
-  explore: (regionId: string) => void;
+  /** 탐험 판정을 계산해 연출 오버레이를 연다(무변이). 동행자 지정 가능. */
+  explore: (regionId: string, escortId?: string | null) => void;
+  /** 관계 변화 후 대화 사건·트랙 선언·소개 연쇄를 확인해 오버레이를 연다. */
+  checkCompanionTriggers: (companionId: string) => void;
   /** 연출 확인 → 탐험 행동으로 턴을 종료한다. */
   confirmExplore: () => Promise<void>;
   cancelExplore: () => void;
@@ -98,6 +120,18 @@ interface GameStore {
   exportBundle: () => Promise<void>;
   /** 꾸러미 불러오기. §12.7a: 붕괴 이전 시점이면 붕괴를 재적용한다. */
   importBundle: (file: File) => Promise<void>;
+
+  // ── M7c: 대화 사건·트랙·퀘스트·인물 생성·교역·선물 품목 ──
+  chooseDialogueChoice: (choiceIndex: number) => Promise<void>;
+  dismissDialogueEvent: () => void;
+  chooseTrack: (track: 'bond' | 'romance') => Promise<void>;
+  acceptQuest: () => Promise<void>;
+  declineQuest: () => void;
+  chooseRecruit: (archetypeId: string, name: string) => Promise<void>;
+  dismissRecruit: () => void;
+  giftItem: (companionId: string, itemId: string) => Promise<void>;
+  sell: (resource: ResourceId, amount: number) => Promise<void>;
+  buy: (resource: ResourceId, gold: number) => Promise<void>;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -113,6 +147,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   onboarding: false,
   pendingExplore: null,
   lastDialogue: null,
+  pendingDialogueEvent: null,
+  pendingDeclaration: null,
+  pendingQuestOffer: null,
+  pendingRecruit: null,
 
   boot: async () => {
     if (get().status === 'loading') return;
@@ -145,7 +183,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
       await storage.saveState(state);
       const ledger = await storage.mergeLedger({ maxTurnReached: 0 });
-      set({ state, ledger, status: 'ready', onboarding: false, storageBanner: null, lastDialogue: null });
+      set({
+        state, ledger, status: 'ready', onboarding: false, storageBanner: null, lastDialogue: null,
+        pendingExplore: null, pendingDialogueEvent: null, pendingDeclaration: null, pendingQuestOffer: null, pendingRecruit: null,
+      });
     } catch (e) {
       const msg = e instanceof StorageError ? e.message : '새 게임을 시작하지 못했습니다.';
       set({ storageBanner: msg });
@@ -224,18 +265,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     await get().commit((s) => applyLearnSkill(s, id));
   },
 
-  explore: (regionId) => {
+  explore: (regionId, escortId) => {
     const s = get().state;
     if (!s || !canExplore(s, regionId)) return;
     const rng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
-    set({ pendingExplore: resolveExplore(s, regionId, rng) });
+    set({ pendingExplore: resolveExplore(s, regionId, rng, escortId ?? null) });
   },
 
   confirmExplore: async () => {
     const p = get().pendingExplore;
     if (!p) return;
     set({ pendingExplore: null });
-    await get().takeTurn({ kind: 'explore', regionId: p.regionId });
+    await get().takeTurn({ kind: 'explore', regionId: p.regionId, escortId: p.escortId });
+    if (p.escortId) get().checkCompanionTriggers(p.escortId);
   },
 
   cancelExplore: () => set({ pendingExplore: null }),
@@ -246,14 +288,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const line = companionTalkLine(s, id);
     set({ lastDialogue: { speaker: s.companions[id]!.name, text: line } });
     await get().takeTurn({ kind: 'talk', target: 'companion', id });
+    get().checkCompanionTriggers(id);
   },
 
   talkPatron: async (id) => {
     const s = get().state;
     if (!s || !s.patrons[id]?.met) return;
-    const line = patronGreetLine(s, id);
-    set({ lastDialogue: { speaker: id, text: line } });
+    set({ lastDialogue: { speaker: id, text: patronGreetLine(s, id) } });
     await get().takeTurn({ kind: 'talk', target: 'patron', id });
+
+    const st = get().state;
+    if (!st) return;
+    // 완료 보고 (§16.1): 요구를 채운 채 이 의뢰인과 교류하면 완료
+    if (st.activeQuest?.patronId === id) {
+      const quest = questById(st.activeQuest.questId);
+      if (quest && isQuestComplete(st, quest)) {
+        await get().commit((n) => {
+          const c = structuredClone(n);
+          completeQuest(c);
+          return c;
+        });
+        if (quest.reward.kind === 'recruit') {
+          set({ pendingRecruit: { candidates: quest.reward.candidates, source: 'quest' } });
+        } else {
+          set({ lastDialogue: { speaker: id, text: `[${quest.title}] 완료했다.` } });
+        }
+        return;
+      }
+    }
+    // 제안 (신뢰 20+, 미수락)
+    const offer = offerableQuest(st, id);
+    if (offer) set({ pendingQuestOffer: { quest: offer } });
   },
 
   giftCompanion: async (id, category) => {
@@ -273,9 +338,112 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return n;
     });
     set({ lastDialogue: { speaker: c.name, text: line } });
+    get().checkCompanionTriggers(id);
   },
 
   dismissDialogue: () => set({ lastDialogue: null }),
+
+  checkCompanionTriggers: (companionId) => {
+    const s = get().state;
+    if (!s) return;
+    const ev = pendingDialogueEvent(s, companionId);
+    if (ev) {
+      set({ pendingDialogueEvent: { companionId, event: ev } });
+      return;
+    }
+    if (shouldDeclareTrack(s, companionId)) {
+      set({ pendingDeclaration: { companionId, romance: romanceEligible(s, companionId) } });
+      return;
+    }
+    // 소개 연쇄: 우애 맹우(80) 전용 (§7.7)
+    const c = s.companions[companionId];
+    if (c && c.track === 'bond' && c.affinity >= 80 && !s.counters.firsts[`referred:${companionId}`] && activeCompanionCount(s) < COMPANION_CAP) {
+      const arch = ARCHETYPES[c.archetypeId];
+      const candidates = Object.values(ARCHETYPES).filter((a) => a.faction === arch?.faction && a.id !== 'wanderer').map((a) => a.id);
+      void get().commit((st) => {
+        const n = structuredClone(st);
+        n.counters.firsts[`referred:${companionId}`] = true;
+        return n;
+      });
+      set({ pendingRecruit: { candidates: candidates.length ? candidates : ['wanderer'], source: 'referral' } });
+    }
+  },
+
+  chooseDialogueChoice: async (choiceIndex) => {
+    const pd = get().pendingDialogueEvent;
+    if (!pd) return;
+    set({ pendingDialogueEvent: null });
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      applyDialogueChoice(n, pd.companionId, pd.event.id, choiceIndex);
+      return n;
+    });
+    get().checkCompanionTriggers(pd.companionId);
+  },
+
+  dismissDialogueEvent: () => set({ pendingDialogueEvent: null }),
+
+  chooseTrack: async (track) => {
+    const pd = get().pendingDeclaration;
+    if (!pd) return;
+    set({ pendingDeclaration: null });
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      declareTrack(n, pd.companionId, track);
+      return n;
+    });
+  },
+
+  acceptQuest: async () => {
+    const offer = get().pendingQuestOffer;
+    if (!offer) return;
+    set({ pendingQuestOffer: null });
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      acceptQuestSys(n, offer.quest.id);
+      return n;
+    });
+  },
+
+  declineQuest: () => set({ pendingQuestOffer: null }),
+
+  chooseRecruit: async (archetypeId, name) => {
+    const r = get().pendingRecruit;
+    if (!r) return;
+    set({ pendingRecruit: null });
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      createCompanion(n, archetypeId, name, r.source === 'referral' ? 'referral' : 'quest');
+      return n;
+    });
+  },
+
+  dismissRecruit: () => set({ pendingRecruit: null }),
+
+  giftItem: async (companionId, itemId) => {
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      applyGiftItem(n, companionId, itemId);
+      return n;
+    });
+    get().checkCompanionTriggers(companionId);
+  },
+
+  sell: async (resource, amount) => {
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      applySell(n, resource, amount);
+      return n;
+    });
+  },
+
+  buy: async (resource, gold) => {
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      applyBuy(n, resource, gold);
+      return n;
+    });
+  },
 
   setCompanionImage: async (id, slot, file) => {
     const s = get().state;

@@ -11,7 +11,12 @@ import type { ChronicleEntry, GameState, ResourceId, Season, StatId } from '@/ty
 import type { Rng } from './rng';
 import type { Grade } from '@/data/content/region-text';
 import { REGION_TEXT } from '@/data/content/region-text';
-import { REGIONS, GRADES, XP_PER_DIFFICULTY, DIE_SIDES, DOWNED_WEEKS, DOWNED_GOLD_LOSS } from '@/data/explore';
+import {
+  REGIONS, GRADES, XP_PER_DIFFICULTY, DIE_SIDES, DOWNED_WEEKS, DOWNED_GOLD_LOSS,
+  ESCORT_MIN_AFFINITY, ESCORT_ROLL_BONUS, ESCORT_INJURY_WEEKS, ESCORT_AFFINITY, ESCORT_PATRON_TRUST,
+} from '@/data/explore';
+import { ARCHETYPES } from '@/data/archetypes';
+import { PRESET_PATRONS } from '@/data/patrons';
 import {
   skillTrackRoll,
   skillInsightRoll,
@@ -43,6 +48,15 @@ export interface ExploreOutcome {
   downed: boolean;
   triumph: boolean;
   relicFound: string | null;
+  escortId: string | null;
+  escortInjured: boolean;
+  escortAffinityDelta: number;
+}
+
+/** 동행 가능한가: 동료(40)+ · 부상 아님 · 떠나지 않음 */
+export function canEscort(state: GameState, companionId: string): boolean {
+  const c = state.companions[companionId];
+  return !!c && c.departedTurn === null && c.affinity >= ESCORT_MIN_AFFINITY && state.world.turn >= c.injuredUntilTurn;
 }
 
 const STAT_NAME: Record<StatId, string> = { might: '힘', agility: '민첩', insight: '통찰', will: '의지' };
@@ -81,13 +95,15 @@ export function canExplore(state: GameState, regionId: string): boolean {
   return !isDowned(state) && state.world.unlockedRegions.includes(regionId) && regionId in REGIONS;
 }
 
-export function resolveExplore(state: GameState, regionId: string, rng: Rng): ExploreOutcome {
+export function resolveExplore(state: GameState, regionId: string, rng: Rng, escortId?: string | null): ExploreOutcome {
   const region = REGIONS[regionId]!;
   const statId = region.stat;
   const statVal = state.hero.stats[statId] + relicStatBonus(state, statId); // 유물 능력치 반영
 
+  const escort = escortId && canEscort(state, escortId) ? escortId : null;
   const d20 = rng.int(1, DIE_SIDES);
   const steps: ExploreStep[] = [{ label: STAT_NAME[statId], value: statVal }, ...bonusSteps(state, statId)];
+  if (escort) steps.push({ label: '동행', value: ESCORT_ROLL_BONUS });
   const total = d20 + steps.reduce((a, s) => a + s.value, 0);
   const margin = total - region.difficulty;
   const gdef = gradeFor(margin);
@@ -140,6 +156,9 @@ export function resolveExplore(state: GameState, regionId: string, rng: Rng): Ex
     downed,
     triumph: grade === 'triumph',
     relicFound,
+    escortId: escort,
+    escortInjured: escort ? grade === 'crisis' : false,
+    escortAffinityDelta: escort ? (ESCORT_AFFINITY[grade] ?? 0) : 0,
   };
 }
 
@@ -166,6 +185,24 @@ export function applyExploreOutcome(
 
   s.counters.explores += 1;
   if (outcome.triumph) s.counters.firsts[`triumph:${outcome.regionId}`] = true;
+
+  // 동행 탐험 결과 (§7.4): 호감 변동, 위기 시 부상, 성공 시 소속 의뢰인 신뢰
+  if (outcome.escortId) {
+    const c = s.companions[outcome.escortId];
+    if (c) {
+      c.affinity = Math.max(0, Math.min(100, c.affinity + outcome.escortAffinityDelta));
+      if (outcome.escortInjured) c.injuredUntilTurn = s.world.turn + ESCORT_INJURY_WEEKS;
+      const arch = ARCHETYPES[c.archetypeId];
+      if (!outcome.escortInjured && arch?.faction) {
+        // 소속 세력의 의뢰인 신뢰 +2 → 두 명단을 잇는다
+        for (const preset of PRESET_PATRONS) {
+          if (preset.faction === arch.faction && s.patrons[preset.id]?.met) {
+            s.patrons[preset.id]!.trust = Math.min(60, s.patrons[preset.id]!.trust + ESCORT_PATRON_TRUST);
+          }
+        }
+      }
+    }
+  }
 
   entries.push({ ...stamp, kind: 'quest', text: outcome.narrative });
 
