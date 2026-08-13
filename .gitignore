@@ -25,3 +25,6 @@ dist-ssr/
 .idea/
 
 # raw-assets/ 는 제외하지 않는다 (원본 에셋은 저장소에 둔다)
+
+# public/assets/ 는 remap-palette·build-atlas 가 생성한다 (raw-assets 원본에서 파생)
+public/assets/

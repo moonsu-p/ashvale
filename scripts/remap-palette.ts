@@ -16,13 +16,20 @@
  * 의존성:  npm i -D sharp tsx
  */
 
-import { readdir, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, mkdir, readFile, copyFile } from 'node:fs/promises';
 import { join, extname, relative, dirname } from 'node:path';
 import sharp from 'sharp';
 import { PALETTE_HEXES } from '../src/data/palette';
 
 const SRC = 'raw-assets';
 const OUT = 'public/assets';
+
+/** 일러스트는 팔레트 리맵 대상이 아니다 (§11.1). 이 디렉터리는 그대로 복사한다. */
+const ILLUSTRATION_DIR = 'illustration';
+
+function isIllustration(rel: string): boolean {
+  return rel.split(/[\\/]/).includes(ILLUSTRATION_DIR);
+}
 
 /** Kenney 타일셋은 에셋 사이에 1px 간격을 두고 배치된다. 잘라낼 때 반영해야 밀리지 않는다 */
 export const KENNEY_SHEET = { tileSize: 16, spacing: 1, margin: 0 } as const;
@@ -70,10 +77,19 @@ function nearestCached(r: number, g: number, b: number): RGB {
 }
 
 async function* walk(dir: string): AsyncGenerator<string> {
-  for (const e of await readdir(dir, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return; // 디렉터리가 없으면(원본 미배치) 조용히 넘어간다
+  }
+  for (const e of entries) {
     const p = join(dir, e.name);
     if (e.isDirectory()) yield* walk(p);
-    else if (extname(e.name).toLowerCase() === '.png') yield p;
+    else {
+      const ext = extname(e.name).toLowerCase();
+      if (ext === '.png' || ext === '.webp') yield p;
+    }
   }
 }
 
@@ -99,7 +115,8 @@ async function remapFile(src: string) {
   await sharp(data, {
     raw: { width: info.width, height: info.height, channels: 4 },
   })
-    .png({ palette: true, compressionLevel: 9 })
+    // palette:true 는 재양자화로 팔레트 밖 색을 만든다. 정확한 팔레트 색을 보존하려면 쓰지 않는다.
+    .png({ compressionLevel: 9 })
     .toFile(dest);
 
   return { rel, pixels: info.width * info.height, changed };
@@ -107,9 +124,21 @@ async function remapFile(src: string) {
 
 async function main() {
   let files = 0;
+  let copied = 0;
   let totalChanged = 0;
 
   for await (const src of walk(SRC)) {
+    const rel = relative(SRC, src);
+    if (isIllustration(rel)) {
+      // 일러스트: 리맵하지 않고 그대로 복사 (§11.1)
+      const dest = join(OUT, rel);
+      await mkdir(dirname(dest), { recursive: true });
+      await copyFile(src, dest);
+      copied++;
+      console.log(`  ${rel}  (일러스트, 복사)`);
+      continue;
+    }
+    if (extname(src).toLowerCase() !== '.png') continue; // 리맵은 PNG 타일셋만
     const r = await remapFile(src);
     files++;
     totalChanged += r.changed;
@@ -117,7 +146,7 @@ async function main() {
     console.log(`  ${r.rel}  (${pct}% 치환)`);
   }
 
-  console.log(`\n파일 ${files}개 처리. 치환 픽셀 ${totalChanged.toLocaleString()}개.`);
+  console.log(`\n타일셋 ${files}개 리맵, 일러스트 ${copied}개 복사. 치환 픽셀 ${totalChanged.toLocaleString()}개.`);
   console.log(`고유 색 ${cache.size}개를 팔레트 32색으로 매핑했다.`);
 
   if (cache.size > 400) {
