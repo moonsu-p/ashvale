@@ -21,6 +21,7 @@ export function SettlementView({ state }: { state: GameState }) {
         seed={state.createdAt}
         season={seasonOf(state.world.week)}
         layout={layout}
+        threatApproach={state.threat ? Math.min(2, 3 - state.threat.weeksLeft) : 0}
         onBuildingTap={selectBuilding}
       />
 

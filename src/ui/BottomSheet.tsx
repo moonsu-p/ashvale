@@ -8,6 +8,7 @@ import { AssetPlaceholder } from './AssetPlaceholder';
 import { ChronicleView } from './ChronicleView';
 import { BuildPanel } from './BuildPanel';
 import { ExplorePanel } from './ExplorePanel';
+import { ThreatPanel } from './ThreatPanel';
 import { CharacterPanel } from './CharacterPanel';
 import { PeoplePanel } from './PeoplePanel';
 import { TradePanel } from './TradePanel';
@@ -121,6 +122,8 @@ export function BottomSheet({ state }: { state: GameState }) {
           ))}
         </div>
       </section>
+
+      <ThreatPanel state={state} />
 
       <ExplorePanel state={state} />
 

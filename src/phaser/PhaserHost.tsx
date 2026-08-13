@@ -14,10 +14,11 @@ interface Props {
   seed: number;
   season: Season;
   layout: DerivedLayout;
+  threatApproach: number;
   onBuildingTap?: (id: string) => void;
 }
 
-export function PhaserHost({ seed, season, layout, onBuildingTap }: Props) {
+export function PhaserHost({ seed, season, layout, threatApproach, onBuildingTap }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const initial = useRef({ seed, season, layout });
@@ -84,8 +85,9 @@ export function PhaserHost({ seed, season, layout, onBuildingTap }: Props) {
     if (scene && scene.scene.isActive()) {
       scene.syncLayout(layout);
       scene.syncSeason(season);
+      scene.syncThreat(threatApproach);
     }
-  }, [layout, season]);
+  }, [layout, season, threatApproach]);
 
   return <div ref={parentRef} className="h-full w-full touch-none" style={{ overflow: 'hidden' }} />;
 }

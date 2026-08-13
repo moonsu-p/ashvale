@@ -95,6 +95,8 @@ interface GameStore {
 
   /** 턴 종료(§2 8단계)를 실행하고 저장한다. RNG 는 재현 가능하게 시드한다. */
   takeTurn: (action: TurnAction) => Promise<void>;
+  /** 방비(턴 소비, §8): prepBonus 누적. */
+  prep: () => Promise<void>;
 
   /** 건설/증축(§5). 건설은 턴을 소비하지 않는다. */
   build: (id: string) => Promise<void>;
@@ -247,6 +249,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   build: async (id) => {
     await get().commit((s) => applyBuild(s, id));
+  },
+
+  prep: async () => {
+    await get().takeTurn({ kind: 'prep' });
   },
 
   selectBuilding: (id) => set({ selectedBuilding: id }),

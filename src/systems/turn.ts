@@ -25,7 +25,9 @@ import { applyLevelUps } from './levels';
 import { resolveExplore, applyExploreOutcome } from './explore';
 import { applyTalkCompanion, applyTalkPatron, checkPeopleAppearances } from './relationships';
 import { recordExploreSuccess } from './quests';
+import { spawnThreat, tickThreat, applyPrep } from './threat';
 import { REGIONS } from '@/data/explore';
+import { THREAT_FROM_CRISIS } from '@/data/threat';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import {
   FOOD_PER_POP,
@@ -45,7 +47,8 @@ import {
 export type TurnAction =
   | { kind: 'rest' }
   | { kind: 'explore'; regionId: string; escortId?: string | null }
-  | { kind: 'talk'; target: 'companion' | 'patron'; id: string };
+  | { kind: 'talk'; target: 'companion' | 'patron'; id: string }
+  | { kind: 'prep' };
 
 export interface TurnResult {
   state: GameState;
@@ -68,6 +71,7 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   const stamp: Stamp = { year: s.world.year, week: s.world.week, season };
 
   // 1) 행동 결과 적용
+  let lastExploreCrisis = false;
   if (action.kind === 'explore') {
     // 탐험 판정은 별도 시드(재현·연출 일치용). 세계 이벤트 rng 스트림과 분리한다.
     const exploreRng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
@@ -76,11 +80,18 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     // 퀘스트·통찰 대성공 진행 (§16.1)
     if (outcome.grade === 'success' || outcome.grade === 'triumph') recordExploreSuccess(s, action.regionId);
     if (outcome.triumph && REGIONS[action.regionId]?.stat === 'insight') s.counters.firsts['insightTriumph'] = true;
+    lastExploreCrisis = outcome.grade === 'crisis';
   } else if (action.kind === 'talk') {
     if (action.target === 'companion') applyTalkCompanion(s, action.id);
     else applyTalkPatron(s, action.id);
+  } else if (action.kind === 'prep') {
+    applyPrep(s); // 방비: prepBonus 누적 (§8)
   }
   // rest: 한 주를 흘려보낸다. 즉시 효과 없음.
+
+  // 탐험 위기 → 위협 발생 35% (§6). 이번 턴 강제 발생 여부 표시.
+  const crisisThreat =
+    action.kind === 'explore' && s.threat === null && lastExploreCrisis && rng.next() < THREAT_FROM_CRISIS;
 
   // 2) 자원 생산 − 식량 소비 (계절 보정) + 기근·적자 연속 판정
   const prod = computeProduction(s, season);
@@ -94,7 +105,11 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   // 3) 주간 회복 (신전 HP, 훈련장 XP)
   applyWeeklyRecovery(s);
 
-  // 4) 위협 카운트다운 / 해결 — §8 (M8). 위협이 없으면 아무 일도 없다.
+  // 4) 위협 카운트다운 / 해결 → 신규 발생 (§8)
+  const tick = tickThreat(s, rng, season);
+  entries.push(...tick.entries);
+  const spawnEntry = spawnThreat(s, rng, season, crisisThreat);
+  if (spawnEntry) entries.push(spawnEntry);
 
   // 5) 세계 이벤트 판정 (12%)
   if (rng.next() < WORLD_EVENT_CHANCE) {
@@ -108,7 +123,7 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   // 6) 레벨업 → 붕괴 판정 → 시대 판정 → 지역 해금
   applyLevelUps(s);
   let collapsed = false;
-  if (shouldCollapse(s)) {
+  if (shouldCollapse(s) || tick.collapseByHall) {
     entries.push(applyCollapse(s, rng)); // 거점만 무너진다. 연대기·이미지·갤러리는 보존(§15.2)
     collapsed = true;
   } else {

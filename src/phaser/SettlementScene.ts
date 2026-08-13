@@ -70,8 +70,11 @@ export class SettlementScene extends Phaser.Scene {
   private groundLayer!: Phaser.GameObjects.Container;
   private gridGfx!: Phaser.GameObjects.Graphics;
   private buildingLayer!: Phaser.GameObjects.Container;
+  private wallGfx!: Phaser.GameObjects.Graphics;
   private seasonTint!: Phaser.GameObjects.Rectangle;
   private detailLayer!: Phaser.GameObjects.Container; // 워커·파티클 (LOD 대상)
+  private threatLayer!: Phaser.GameObjects.Container; // 적 접근 (틴트 위)
+  private threatApproach = 0;
 
   private placed: PlacedRect[] = [];
   private workers: Worker[] = [];
@@ -110,12 +113,14 @@ export class SettlementScene extends Phaser.Scene {
 
     this.groundLayer = this.add.container(0, 0);
     this.gridGfx = this.add.graphics();
+    this.wallGfx = this.add.graphics(); // 성벽 둘레 링 (§5), 틴트 아래
     this.buildingLayer = this.add.container(0, 0); // 지면 위, 계절 틴트 아래(계절색 적용됨)
     this.seasonTint = this.add
       .rectangle(0, 0, 1, 1, 0xffffff, 1)
       .setOrigin(0, 0)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.detailLayer = this.add.container(0, 0); // 워커는 틴트 위(눈에 띄게)
+    this.threatLayer = this.add.container(0, 0); // 적 접근
 
     this.buildGround();
     this.renderBuildings();
@@ -266,7 +271,43 @@ export class SettlementScene extends Phaser.Scene {
       this.placed.push({ id: b.id, px, py, pw, ph });
     }
 
+    this.drawWall();
     this.syncWorkers(this.layout.workerCount);
+    this.drawThreat();
+  }
+
+  /** 성벽 둘레 링 (§5): 레벨 1–3 울타리 / 4–9 석벽 / 10+ 탑. 점유 영역을 감싼다. */
+  private drawWall(): void {
+    this.wallGfx.clear();
+    const w = this.layout.wall;
+    if (!w.present) return;
+    const color = w.level >= 10 ? PALETTE.stoneLight : w.level >= 4 ? PALETTE.stone : PALETTE.woodLight;
+    const b = this.layout.bounds;
+    const x = (b.minX - 1) * TILE_SRC;
+    const y = (b.minY - 1) * TILE_SRC;
+    const rw = (b.maxX - b.minX + 2) * TILE_SRC;
+    const rh = (b.maxY - b.minY + 2) * TILE_SRC;
+    this.wallGfx.lineStyle(w.level >= 10 ? 5 : w.level >= 4 ? 4 : 3, hex(color), 1);
+    this.wallGfx.strokeRect(x, y, rw, rh);
+  }
+
+  /** 적 접근 연출 (§10.4): 준비 2주 = 2단계로 가까워진다. */
+  syncThreat(approach: number): void {
+    if (approach === this.threatApproach) return;
+    this.threatApproach = approach;
+    this.drawThreat();
+  }
+
+  private drawThreat(): void {
+    this.threatLayer.removeAll(true);
+    if (this.threatApproach <= 0) return;
+    const size = this.gridSize * TILE_SRC;
+    // 단계가 클수록 가까이(맵 안쪽으로). 상단 중앙에서 접근.
+    const offset = this.threatApproach >= 2 ? TILE_SRC : TILE_SRC * 3;
+    const g = this.add.graphics();
+    g.fillStyle(hex(PALETTE.blood), 1);
+    g.fillCircle(size / 2, -offset + TILE_SRC / 2, 5);
+    this.threatLayer.add(g);
   }
 
   // ────────────────────────── 워커 ──────────────────────────
