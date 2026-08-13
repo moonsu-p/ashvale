@@ -65,6 +65,8 @@ interface GameStore {
   pendingExplore: ExploreOutcome | null;
   /** 방금 나눈 대사 — 인물 화면 표시용 */
   lastDialogue: Dialogue | null;
+  /** 직전 행동 — 재실행 버튼용 (§15.3) */
+  lastAction: TurnAction | null;
   /** 대화 사건 오버레이 (§16.3) */
   pendingDialogueEvent: { companionId: string; event: DialogueEvent } | null;
   /** 관계 선언(트랙 분기, §7.5) */
@@ -97,6 +99,8 @@ interface GameStore {
   takeTurn: (action: TurnAction) => Promise<void>;
   /** 방비(턴 소비, §8): prepBonus 누적. */
   prep: () => Promise<void>;
+  /** 직전 행동을 한 번 더 (§15.3). */
+  repeatLast: () => Promise<void>;
 
   /** 건설/증축(§5). 건설은 턴을 소비하지 않는다. */
   build: (id: string) => Promise<void>;
@@ -149,6 +153,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   onboarding: false,
   pendingExplore: null,
   lastDialogue: null,
+  lastAction: null,
   pendingDialogueEvent: null,
   pendingDeclaration: null,
   pendingQuestOffer: null,
@@ -186,7 +191,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       await storage.saveState(state);
       const ledger = await storage.mergeLedger({ maxTurnReached: 0 });
       set({
-        state, ledger, status: 'ready', onboarding: false, storageBanner: null, lastDialogue: null,
+        state, ledger, status: 'ready', onboarding: false, storageBanner: null, lastDialogue: null, lastAction: null,
         pendingExplore: null, pendingDialogueEvent: null, pendingDeclaration: null, pendingQuestOffer: null, pendingRecruit: null,
       });
     } catch (e) {
@@ -230,7 +235,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!cur) return;
     const rng = createRng(`${cur.createdAt}:turn:${cur.world.turn}`);
     const { state: next, collapsed } = endTurn(cur, action, rng);
-    set({ state: next });
+    set({ state: next, lastAction: action });
     try {
       await storage.saveState(next);
       const patch: Partial<Ledger> = { maxTurnReached: next.world.turn };
@@ -253,6 +258,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   prep: async () => {
     await get().takeTurn({ kind: 'prep' });
+  },
+
+  repeatLast: async () => {
+    const last = get().lastAction;
+    const s = get().state;
+    if (!last || !s) return;
+    // 유효성만 확인하고 다시 실행 (탐험은 연출 없이 즉시 적용 — 빠른 반복, §15.3)
+    if (last.kind === 'explore' && !canExplore(s, last.regionId)) return;
+    await get().takeTurn(last);
+    if (last.kind === 'talk' && last.target === 'companion') get().checkCompanionTriggers(last.id);
   },
 
   selectBuilding: (id) => set({ selectedBuilding: id }),

@@ -4,6 +4,7 @@ import { isDebugAssets } from '@/render/debugAssets';
 import { PortraitFrame } from '@/ui/PortraitFrame';
 import { StorageBanner } from '@/ui/StorageBanner';
 import { GameWarning } from '@/ui/GameWarning';
+import { ResumeLine } from '@/ui/ResumeLine';
 import { QuestCard } from '@/ui/QuestCard';
 import { QuestBar } from '@/ui/QuestBar';
 import { SettlementView } from '@/ui/SettlementView';
@@ -55,6 +56,7 @@ export default function App() {
           <>
             <StorageBanner />
             <GameWarning state={state} />
+            <ResumeLine state={state} />
             <QuestCard state={state} />
             <QuestBar state={state} />
           </>

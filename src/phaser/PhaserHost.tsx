@@ -44,6 +44,7 @@ export function PhaserHost({ seed, season, layout, threatApproach, onBuildingTap
       roundPixels: true,
       scale: { mode: Phaser.Scale.NONE, autoCenter: Phaser.Scale.NO_CENTER },
       input: { activePointers: 3 },
+      audio: { noAudio: true }, // 오디오 미사용 — AudioContext 생성 안 함(§10.6 자원 절약)
       banner: false,
       callbacks: {
         postBoot: (g) => {

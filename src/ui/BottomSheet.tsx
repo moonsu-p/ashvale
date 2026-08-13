@@ -50,6 +50,8 @@ function signed(n: number): string {
 export function BottomSheet({ state }: { state: GameState }) {
   const newChronicle = useGameStore((s) => s.newChronicle);
   const takeTurn = useGameStore((s) => s.takeTurn);
+  const repeatLast = useGameStore((s) => s.repeatLast);
+  const lastAction = useGameStore((s) => s.lastAction);
   const persist = useGameStore((s) => s.persist);
   const ledger = useGameStore((s) => s.ledger);
 
@@ -84,13 +86,25 @@ export function BottomSheet({ state }: { state: GameState }) {
         </Row>
       </section>
 
-      <button
-        onClick={() => void takeTurn({ kind: 'rest' })}
-        className="w-full rounded py-2.5 text-sm font-medium"
-        style={{ background: PALETTE.grass, color: PALETTE.paper }}
-      >
-        휴식 — 다음 주로
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => void takeTurn({ kind: 'rest' })}
+          className="flex-1 rounded py-2.5 text-sm font-medium"
+          style={{ background: PALETTE.grass, color: PALETTE.paper }}
+        >
+          휴식 — 다음 주로
+        </button>
+        {lastAction && (
+          <button
+            onClick={() => void repeatLast()}
+            className="shrink-0 rounded px-3 py-2.5 text-sm font-medium"
+            style={{ background: PALETTE.slate, color: PALETTE.paper }}
+            title="직전 행동 반복"
+          >
+            ↻ 반복
+          </button>
+        )}
+      </div>
 
       <section>
         <h2 className="mb-1 font-medium">자원 <span className="text-xs" style={{ color: PALETTE.inkSoft }}>(주간 수지)</span></h2>
