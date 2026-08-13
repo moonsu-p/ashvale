@@ -23,11 +23,16 @@ import {
   PAN_MARGIN_TILES,
 } from '@/data/camera';
 import { GROUND_COLORS, GRID_LINE_COLOR, GRID_LINE_ALPHA } from '@/data/terrain';
+import { SEASON_TINT } from '@/data/palette';
+import type { Season } from '@/types/game';
 
 export interface SettlementSceneData {
   gridSize: number;
   seed: number;
+  season: Season;
 }
+
+const TINT_KEYS = ['spring', 'summer', 'autumn', 'winter'] as const;
 
 const GROUND_TEX_PREFIX = 'ground_';
 
@@ -36,10 +41,12 @@ export class SettlementScene extends Phaser.Scene {
 
   private gridSize = 12;
   private seed = 0;
+  private season: Season = 0;
 
   private groundLayer!: Phaser.GameObjects.Container;
   private detailLayer!: Phaser.GameObjects.Container;
   private gridGfx!: Phaser.GameObjects.Graphics;
+  private seasonTint!: Phaser.GameObjects.Rectangle;
 
   /** 사용자 기준 줌(스냅 값 중 하나). 실제 카메라 줌 = userZoom × BASE_SCALE */
   private userZoom = ZOOM_DEFAULT;
@@ -61,6 +68,7 @@ export class SettlementScene extends Phaser.Scene {
   init(data: SettlementSceneData): void {
     this.gridSize = data.gridSize;
     this.seed = data.seed;
+    this.season = data.season ?? 0;
   }
 
   create(): void {
@@ -68,9 +76,15 @@ export class SettlementScene extends Phaser.Scene {
 
     this.groundLayer = this.add.container(0, 0);
     this.gridGfx = this.add.graphics();
+    // 계절 틴트: 지면 위, detail 아래. 곱셈 블렌드로 색온도만 바꾼다 (§10.2, §10.4)
+    this.seasonTint = this.add
+      .rectangle(0, 0, 1, 1, 0xffffff, 1)
+      .setOrigin(0, 0)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.detailLayer = this.add.container(0, 0);
 
     this.buildMap();
+    this.applySeasonTint();
     this.setupInput();
     this.applyZoom(this.userZoom);
     this.fitView();
@@ -82,7 +96,24 @@ export class SettlementScene extends Phaser.Scene {
     this.gridSize = gridSize;
     this.seed = seed;
     this.buildMap();
+    this.applySeasonTint();
     this.fitView();
+  }
+
+  /** 계절 변화 → 화면 색온도 갱신 (§2, §10.4) */
+  syncSeason(season: Season): void {
+    if (season === this.season) return;
+    this.season = season;
+    this.applySeasonTint();
+  }
+
+  private applySeasonTint(): void {
+    const size = this.gridSize * TILE_SRC;
+    this.seasonTint.setPosition(0, 0);
+    this.seasonTint.setSize(size, size);
+    const tint = SEASON_TINT[TINT_KEYS[this.season]];
+    this.seasonTint.setFillStyle(Phaser.Display.Color.HexStringToColor(tint.color).color, 1);
+    this.seasonTint.setAlpha(tint.alpha);
   }
 
   // ────────────────────────── 텍스처 ──────────────────────────

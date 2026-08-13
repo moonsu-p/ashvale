@@ -5,7 +5,7 @@
 
 import { PhaserHost } from '@/phaser/PhaserHost';
 import { PALETTE } from '@/data/palette';
-import { seasonName } from '@/systems/time';
+import { seasonName, seasonOf } from '@/systems/time';
 import { gridSizeForEra } from '@/systems/grid';
 import type { GameState } from '@/types/game';
 
@@ -14,7 +14,7 @@ export function SettlementView({ state }: { state: GameState }) {
 
   return (
     <div className="relative h-full w-full">
-      <PhaserHost gridSize={gridSize} seed={state.createdAt} />
+      <PhaserHost gridSize={gridSize} seed={state.createdAt} season={seasonOf(state.world.week)} />
 
       {/* 상단 좌: 거점명·계절 */}
       <div

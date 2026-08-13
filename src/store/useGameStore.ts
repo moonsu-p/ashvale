@@ -9,6 +9,8 @@
 import { create } from 'zustand';
 import type { GameState, Ledger } from '@/types/game';
 import { createInitialState } from '@/systems/newGame';
+import { endTurn, type TurnAction } from '@/systems/turn';
+import { createRng } from '@/systems/rng';
 import { storage, StorageError } from '@/storage';
 import { requestPersistentStorage, type PersistStatus } from '@/storage/persist';
 
@@ -31,6 +33,9 @@ interface GameStore {
    * mutator 는 새 GameState 를 반환하는 순수 변환이어야 한다.
    */
   commit: (mutator: (s: GameState) => GameState) => Promise<void>;
+
+  /** 턴 종료(§2 8단계)를 실행하고 저장한다. RNG 는 재현 가능하게 시드한다. */
+  takeTurn: (action: TurnAction) => Promise<void>;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -92,6 +97,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const msg = e instanceof StorageError ? e.message : '자동 저장에 실패했습니다.';
       set({ storageBanner: msg });
     }
+  },
+
+  takeTurn: async (action) => {
+    await get().commit((s) => {
+      const rng = createRng(`${s.createdAt}:turn:${s.world.turn}`);
+      return endTurn(s, action, rng).state;
+    });
   },
 
   dismissBanner: () => set({ storageBanner: null }),

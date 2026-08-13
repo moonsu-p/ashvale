@@ -8,16 +8,19 @@ import Phaser from 'phaser';
 import { SettlementScene } from './SettlementScene';
 import { PALETTE } from '@/data/palette';
 
+import type { Season } from '@/types/game';
+
 interface Props {
   gridSize: number;
   seed: number;
+  season: Season;
 }
 
-export function PhaserHost({ gridSize, seed }: Props) {
+export function PhaserHost({ gridSize, seed, season }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const initial = useRef({ gridSize, seed });
-  initial.current = { gridSize, seed };
+  const initial = useRef({ gridSize, seed, season });
+  initial.current = { gridSize, seed, season };
 
   // 게임 생성/파괴 (마운트 1회)
   useEffect(() => {
@@ -43,6 +46,7 @@ export function PhaserHost({ gridSize, seed }: Props) {
           g.scene.add(SettlementScene.KEY, SettlementScene, true, {
             gridSize: initial.current.gridSize,
             seed: initial.current.seed,
+            season: initial.current.season,
           });
         },
       },
@@ -75,8 +79,11 @@ export function PhaserHost({ gridSize, seed }: Props) {
     const game = gameRef.current;
     if (!game) return;
     const scene = game.scene.getScene(SettlementScene.KEY) as SettlementScene | null;
-    if (scene && scene.scene.isActive()) scene.syncGrid(gridSize, seed);
-  }, [gridSize, seed]);
+    if (scene && scene.scene.isActive()) {
+      scene.syncGrid(gridSize, seed);
+      scene.syncSeason(season);
+    }
+  }, [gridSize, seed, season]);
 
   return <div ref={parentRef} className="h-full w-full touch-none" style={{ overflow: 'hidden' }} />;
 }

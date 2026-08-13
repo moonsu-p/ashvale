@@ -5,7 +5,10 @@
 
 import { PALETTE } from '@/data/palette';
 import { AssetPlaceholder } from './AssetPlaceholder';
+import { ChronicleView } from './ChronicleView';
 import { useGameStore } from '@/store/useGameStore';
+import { weeklyBalance } from '@/systems/turn';
+import { population } from '@/systems/economy';
 import type { GameState, ResourceId, StatId } from '@/types/game';
 
 const RESOURCE_ICON: Record<ResourceId, string> = {
@@ -30,10 +33,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
 export function BottomSheet({ state }: { state: GameState }) {
   const newChronicle = useGameStore((s) => s.newChronicle);
+  const takeTurn = useGameStore((s) => s.takeTurn);
   const persist = useGameStore((s) => s.persist);
   const ledger = useGameStore((s) => s.ledger);
+
+  const balance = weeklyBalance(state);
+  const pop = population(state);
 
   const onNew = () => {
     // 2단 확인 (§12). 정식 확인 UI 는 이후 마일스톤에서.
@@ -48,7 +59,9 @@ export function BottomSheet({ state }: { state: GameState }) {
   return (
     <div className="flex flex-col gap-3 p-3 text-sm">
       <section>
-        <Row label="거점">{state.settlement.name}</Row>
+        <Row label="거점">
+          {state.settlement.name} · 인구 {pop}
+        </Row>
         <Row label="시간">
           {state.world.year}년 {state.world.week}주 · 총 {state.world.turn}턴
         </Row>
@@ -57,15 +70,30 @@ export function BottomSheet({ state }: { state: GameState }) {
         </Row>
       </section>
 
+      <button
+        onClick={() => void takeTurn({ kind: 'rest' })}
+        className="w-full rounded py-2.5 text-sm font-medium"
+        style={{ background: PALETTE.grass, color: PALETTE.paper }}
+      >
+        휴식 — 다음 주로
+      </button>
+
       <section>
-        <h2 className="mb-1 font-medium">자원</h2>
+        <h2 className="mb-1 font-medium">자원 <span className="text-xs" style={{ color: PALETTE.inkSoft }}>(주간 수지)</span></h2>
         <div className="grid grid-cols-4 gap-2">
-          {(Object.keys(RESOURCE_ICON) as ResourceId[]).map((r) => (
-            <div key={r} className="flex flex-col items-center gap-1">
-              <AssetPlaceholder id={RESOURCE_ICON[r]} size={32} />
-              <span className="text-xs">{state.resources[r]}</span>
-            </div>
-          ))}
+          {(Object.keys(RESOURCE_ICON) as ResourceId[]).map((r) => {
+            const net = balance[r];
+            const netColor = net > 0 ? PALETTE.grass : net < 0 ? PALETTE.blood : PALETTE.inkSoft;
+            return (
+              <div key={r} className="flex flex-col items-center gap-1">
+                <AssetPlaceholder id={RESOURCE_ICON[r]} size={32} />
+                <span className="text-xs tabular-nums">{state.resources[r]}</span>
+                <span className="text-[10px] tabular-nums" style={{ color: netColor }}>
+                  {signed(net)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -80,6 +108,8 @@ export function BottomSheet({ state }: { state: GameState }) {
           ))}
         </div>
       </section>
+
+      <ChronicleView entries={state.chronicle} />
 
       <section className="text-xs" style={{ color: PALETTE.inkSoft }}>
         <Row label="저장소">{persistText}</Row>
