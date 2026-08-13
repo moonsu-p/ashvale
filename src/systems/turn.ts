@@ -14,13 +14,15 @@ import {
   type ResourceId,
   type Season,
 } from '@/types/game';
-import type { Rng } from './rng';
+import { createRng, type Rng } from './rng';
 import { seasonOf, WEEKS_PER_YEAR } from './time';
 import { addResource, computeProduction, population } from './economy';
 import { pickWorldEvent, applyWorldEvent } from './worldEvents';
 import { eraFromPower, eraTierFromPower } from './progression';
 import { shouldCollapse, applyCollapse } from './collapse';
 import { checkRegionUnlocks } from './regions';
+import { applyLevelUps } from './levels';
+import { resolveExplore, applyExploreOutcome } from './explore';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import {
   FOOD_PER_POP,
@@ -37,7 +39,7 @@ import {
   COLLAPSE_WARNING_TEXT,
 } from '@/data/chronicle-system';
 
-export type TurnAction = { kind: 'rest' };
+export type TurnAction = { kind: 'rest' } | { kind: 'explore'; regionId: string };
 
 export interface TurnResult {
   state: GameState;
@@ -60,7 +62,13 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   const stamp: Stamp = { year: s.world.year, week: s.world.week, season };
 
   // 1) 행동 결과 적용
-  applyAction(s, action);
+  if (action.kind === 'explore') {
+    // 탐험 판정은 별도 시드(재현·연출 일치용). 세계 이벤트 rng 스트림과 분리한다.
+    const exploreRng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
+    const outcome = resolveExplore(s, action.regionId, exploreRng);
+    entries.push(applyExploreOutcome(s, outcome, stamp));
+  }
+  // rest: 한 주를 흘려보낸다. 즉시 효과 없음.
 
   // 2) 자원 생산 − 식량 소비 (계절 보정) + 기근·적자 연속 판정
   const prod = computeProduction(s, season);
@@ -85,7 +93,8 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     }
   }
 
-  // 6) (레벨업 §4 M5) → 붕괴 판정 → 시대 판정 → 지역 해금
+  // 6) 레벨업 → 붕괴 판정 → 시대 판정 → 지역 해금
+  applyLevelUps(s);
   let collapsed = false;
   if (shouldCollapse(s)) {
     entries.push(applyCollapse(s, rng)); // 거점만 무너진다. 연대기·이미지·갤러리는 보존(§15.2)
@@ -115,14 +124,6 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
 }
 
 // ────────────────────────── 단계 헬퍼 ──────────────────────────
-
-function applyAction(_s: GameState, action: TurnAction): void {
-  switch (action.kind) {
-    case 'rest':
-      // 휴식은 한 주를 흘려보낸다. 즉시 효과 없음.
-      break;
-  }
-}
 
 function applyWeeklyRecovery(s: GameState): void {
   let heal = 0;

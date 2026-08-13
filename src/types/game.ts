@@ -66,6 +66,7 @@ export interface GameState {
     skillPoints: number;
     skills: Record<string, number>; // skillId -> rank
     relics: string[];
+    downedUntilTurn: number; // 쓰러진 채 실려 옴 → 이 턴까지 탐험 불가 (§6). 0 = 정상
   };
 
   settlement: {

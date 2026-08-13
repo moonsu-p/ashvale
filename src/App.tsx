@@ -3,9 +3,12 @@ import { useGameStore } from '@/store/useGameStore';
 import { isDebugAssets } from '@/render/debugAssets';
 import { PortraitFrame } from '@/ui/PortraitFrame';
 import { StorageBanner } from '@/ui/StorageBanner';
+import { GameWarning } from '@/ui/GameWarning';
+import { QuestCard } from '@/ui/QuestCard';
 import { SettlementView } from '@/ui/SettlementView';
 import { BottomSheet } from '@/ui/BottomSheet';
-import { GameWarning } from '@/ui/GameWarning';
+import { Onboarding } from '@/ui/Onboarding';
+import { ExploreOverlay } from '@/ui/ExploreOverlay';
 import { AssetGallery } from '@/ui/AssetGallery';
 import { PALETTE } from '@/data/palette';
 
@@ -13,12 +16,13 @@ export default function App() {
   const boot = useGameStore((s) => s.boot);
   const status = useGameStore((s) => s.status);
   const state = useGameStore((s) => s.state);
+  const onboarding = useGameStore((s) => s.onboarding);
+  const pendingExplore = useGameStore((s) => s.pendingExplore);
 
   useEffect(() => {
     void boot();
   }, [boot]);
 
-  // 개발용 에셋 갤러리
   if (isDebugAssets()) return <AssetGallery />;
 
   if (status === 'loading' || status === 'idle') {
@@ -29,8 +33,9 @@ export default function App() {
     );
   }
 
+  if (onboarding) return <Onboarding />;
+
   if (!state) {
-    // 오류 상태에서도 배너로 안내하고 앱은 멈추지 않는다
     return (
       <div className="flex h-full flex-col">
         <StorageBanner />
@@ -42,15 +47,28 @@ export default function App() {
   }
 
   return (
-    <PortraitFrame
-      banner={
-        <>
-          <StorageBanner />
-          <GameWarning state={state} />
-        </>
-      }
-      map={<SettlementView state={state} />}
-      sheet={<BottomSheet state={state} />}
-    />
+    <div className="relative h-full">
+      <PortraitFrame
+        banner={
+          <>
+            <StorageBanner />
+            <GameWarning state={state} />
+            <QuestCard state={state} />
+          </>
+        }
+        map={<SettlementView state={state} />}
+        sheet={<BottomSheet state={state} />}
+      />
+      {pendingExplore && (
+        <div className="absolute inset-0 flex justify-center">
+          <div
+            className="relative h-full w-full"
+            style={{ width: 'min(100vw, calc(100dvh * 393 / 852))', maxWidth: 393 }}
+          >
+            <ExploreOverlay outcome={pendingExplore} />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

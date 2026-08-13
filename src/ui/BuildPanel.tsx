@@ -8,6 +8,7 @@ import { PALETTE } from '@/data/palette';
 import { BUILDING_COST, BUILDING_NAMES, BUILD_ORDER } from '@/data/buildings';
 import { useGameStore } from '@/store/useGameStore';
 import { currentLevel, isUnlocked, nextCost, canAfford } from '@/systems/construction';
+import { currentTask, inRecommendWindow } from '@/systems/onboarding';
 import type { GameState, ResourceId } from '@/types/game';
 
 const RES_LABEL: Record<ResourceId, string> = { wood: '목', stone: '석', food: '식', gold: '금' };
@@ -33,6 +34,7 @@ export function BuildPanel({ state }: { state: GameState }) {
   const selectBuilding = useGameStore((s) => s.selectBuilding);
 
   const ids = BUILD_ORDER.filter((id) => id in BUILDING_COST && isUnlocked(state, id));
+  const recommendId = inRecommendWindow(state) ? currentTask(state)?.id : undefined;
 
   return (
     <section>
@@ -43,6 +45,7 @@ export function BuildPanel({ state }: { state: GameState }) {
           const cost = nextCost(state, id);
           const afford = canAfford(state, cost);
           const isSel = selected === id;
+          const recommend = recommendId === id;
           return (
             <li
               key={id}
@@ -50,7 +53,7 @@ export function BuildPanel({ state }: { state: GameState }) {
               className="flex items-center gap-2 rounded px-2 py-1.5 text-xs"
               style={{
                 background: isSel ? PALETTE.paperDim : 'transparent',
-                outline: isSel ? `1px solid ${PALETTE.gold}` : undefined,
+                outline: isSel || recommend ? `1px solid ${PALETTE.gold}` : undefined,
               }}
             >
               <span className="w-16 shrink-0 font-medium">{BUILDING_NAMES[id] ?? id}</span>

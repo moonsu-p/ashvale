@@ -11,7 +11,9 @@ import type { GameState, Ledger } from '@/types/game';
 import { createInitialState } from '@/systems/newGame';
 import { endTurn, type TurnAction } from '@/systems/turn';
 import { applyBuild } from '@/systems/construction';
+import { resolveExplore, canExplore, type ExploreOutcome } from '@/systems/explore';
 import { createRng } from '@/systems/rng';
+import { DEFAULT_HERO_NAME, DEFAULT_SETTLEMENT_NAME } from '@/data/onboarding';
 import { storage, StorageError } from '@/storage';
 import { requestPersistentStorage, type PersistStatus } from '@/storage/persist';
 
@@ -26,10 +28,21 @@ interface GameStore {
   persist: PersistStatus | null;
   /** 맵에서 탭한 건물 (건설/증축 패널 강조용) */
   selectedBuilding: string | null;
+  /** 온보딩 화면 표시 여부 (세이브 없고 아직 시작 전) */
+  onboarding: boolean;
+  /** 진행 중인 탐험 판정 결과 — 연출 오버레이용. 확인 시 턴이 종료된다. */
+  pendingExplore: ExploreOutcome | null;
 
   boot: () => Promise<void>;
+  startNewGame: (heroName: string, settlementName: string) => Promise<void>;
   newChronicle: (heroName?: string) => Promise<void>;
   dismissBanner: () => void;
+
+  /** 탐험 판정을 계산해 연출 오버레이를 연다(무변이). */
+  explore: (regionId: string) => void;
+  /** 연출 확인 → 탐험 행동으로 턴을 종료한다. */
+  confirmExplore: () => Promise<void>;
+  cancelExplore: () => void;
 
   /**
    * 상태를 변경하고 자동 저장한다. 모든 규칙 액션은 이 게이트를 통과한다.
@@ -55,6 +68,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   storageBanner: null,
   persist: null,
   selectedBuilding: null,
+  onboarding: false,
+  pendingExplore: null,
 
   boot: async () => {
     if (get().status === 'loading') return;
@@ -64,16 +79,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     void requestPersistentStorage().then((p) => set({ persist: p }));
 
     try {
-      let state = await storage.loadState();
+      const state = await storage.loadState();
       if (!state) {
-        state = createInitialState(now());
-        await storage.saveState(state);
+        // 세이브 없음 → 온보딩(§16.2). 자동 생성하지 않는다.
+        set({ status: 'ready', onboarding: true, state: null });
+        return;
       }
       const ledger = await storage.mergeLedger({ maxTurnReached: state.world.turn });
-      set({ state, ledger, status: 'ready' });
+      set({ state, ledger, status: 'ready', onboarding: false });
     } catch (e) {
       const msg = e instanceof StorageError ? e.message : '저장소 초기화에 실패했습니다.';
       set({ status: 'error', storageBanner: msg });
+    }
+  },
+
+  startNewGame: async (heroName, settlementName) => {
+    try {
+      const state = createInitialState(
+        now(),
+        heroName.trim() || DEFAULT_HERO_NAME,
+        settlementName.trim() || DEFAULT_SETTLEMENT_NAME
+      );
+      await storage.saveState(state);
+      const ledger = await storage.mergeLedger({ maxTurnReached: 0 });
+      set({ state, ledger, status: 'ready', onboarding: false });
+    } catch (e) {
+      const msg = e instanceof StorageError ? e.message : '새 게임을 시작하지 못했습니다.';
+      set({ storageBanner: msg });
     }
   },
 
@@ -134,6 +166,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   selectBuilding: (id) => set({ selectedBuilding: id }),
+
+  explore: (regionId) => {
+    const s = get().state;
+    if (!s || !canExplore(s, regionId)) return;
+    const rng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
+    set({ pendingExplore: resolveExplore(s, regionId, rng) });
+  },
+
+  confirmExplore: async () => {
+    const p = get().pendingExplore;
+    if (!p) return;
+    set({ pendingExplore: null });
+    await get().takeTurn({ kind: 'explore', regionId: p.regionId });
+  },
+
+  cancelExplore: () => set({ pendingExplore: null }),
 
   dismissBanner: () => set({ storageBanner: null }),
 }));

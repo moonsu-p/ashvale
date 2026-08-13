@@ -7,6 +7,7 @@ import { PALETTE } from '@/data/palette';
 import { AssetPlaceholder } from './AssetPlaceholder';
 import { ChronicleView } from './ChronicleView';
 import { BuildPanel } from './BuildPanel';
+import { ExplorePanel } from './ExplorePanel';
 import { useGameStore } from '@/store/useGameStore';
 import { weeklyBalance } from '@/systems/turn';
 import { population } from '@/systems/economy';
@@ -116,6 +117,8 @@ export function BottomSheet({ state }: { state: GameState }) {
           ))}
         </div>
       </section>
+
+      <ExplorePanel state={state} />
 
       <BuildPanel state={state} />
 

@@ -14,7 +14,11 @@ import {
   START_SETTLEMENT_NAME,
 } from '@/data/start';
 
-export function createInitialState(now: number, heroName = ''): GameState {
+export function createInitialState(
+  now: number,
+  heroName = '',
+  settlementName: string = START_SETTLEMENT_NAME
+): GameState {
   return {
     schemaVersion: CURRENT_SCHEMA,
     createdAt: now,
@@ -30,10 +34,11 @@ export function createInitialState(now: number, heroName = ''): GameState {
       skillPoints: 0,
       skills: {},
       relics: [],
+      downedUntilTurn: 0,
     },
 
     settlement: {
-      name: START_SETTLEMENT_NAME,
+      name: settlementName,
       buildings: { ...START_BUILDINGS },
     },
 
