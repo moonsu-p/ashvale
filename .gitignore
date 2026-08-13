@@ -1,0 +1,27 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+dist-ssr/
+
+# 환경 변수
+.env
+.env.*
+!.env.example
+
+# 서명 키 (절대 커밋 금지)
+*.keystore
+*.jks
+
+# 로그·캐시
+*.log
+.DS_Store
+.vite/
+
+# 에디터
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# raw-assets/ 는 제외하지 않는다 (원본 에셋은 저장소에 둔다)
