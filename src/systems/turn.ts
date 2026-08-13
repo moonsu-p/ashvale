@@ -18,6 +18,9 @@ import type { Rng } from './rng';
 import { seasonOf, WEEKS_PER_YEAR } from './time';
 import { addResource, computeProduction, population } from './economy';
 import { pickWorldEvent, applyWorldEvent } from './worldEvents';
+import { eraFromPower, eraTierFromPower } from './progression';
+import { shouldCollapse, applyCollapse } from './collapse';
+import { checkRegionUnlocks } from './regions';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import {
   FOOD_PER_POP,
@@ -26,13 +29,21 @@ import {
   FAMINE_BUILDING_LOSS_CHANCE,
   SHRINE_FAMINE_MULT,
 } from '@/data/economy';
-import { FAMINE_TEXT, famineBuildingLossText } from '@/data/chronicle-system';
+import { COLLAPSE_FOOD_STREAK, COLLAPSE_POP_MAX, COLLAPSE_WARN_BEFORE } from '@/data/collapse';
+import {
+  FAMINE_TEXT,
+  famineBuildingLossText,
+  eraTransitionText,
+  COLLAPSE_WARNING_TEXT,
+} from '@/data/chronicle-system';
 
 export type TurnAction = { kind: 'rest' };
 
 export interface TurnResult {
   state: GameState;
   entries: ChronicleEntry[];
+  /** 이번 턴에 붕괴가 일어났는지 (원장 갱신·연출 트리거용) */
+  collapsed: boolean;
 }
 
 interface Stamp {
@@ -43,6 +54,7 @@ interface Stamp {
 
 export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResult {
   const s: GameState = structuredClone(prev);
+  if (s.counters.foodDeficitStreak == null) s.counters.foodDeficitStreak = 0; // 구 세이브 보정
   const entries: ChronicleEntry[] = [];
   const season = seasonOf(s.world.week);
   const stamp: Stamp = { year: s.world.year, week: s.world.week, season };
@@ -50,20 +62,19 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
   // 1) 행동 결과 적용
   applyAction(s, action);
 
-  // 2) 자원 생산 − 식량 소비 (계절 보정)
+  // 2) 자원 생산 − 식량 소비 (계절 보정) + 기근·적자 연속 판정
   const prod = computeProduction(s, season);
   addResource(s, 'wood', prod.wood);
   addResource(s, 'stone', prod.stone);
   addResource(s, 'gold', prod.gold);
   addResource(s, 'food', prod.food);
   s.resources.food -= population(s) * FOOD_PER_POP;
-  if (s.resources.food < 0) applyFamine(s, entries, stamp, rng);
+  updateFamineStreak(s, entries, stamp, rng);
 
   // 3) 주간 회복 (신전 HP, 훈련장 XP)
   applyWeeklyRecovery(s);
 
   // 4) 위협 카운트다운 / 해결 — §8 (M8). 위협이 없으면 아무 일도 없다.
-  //    (M2 에서는 threat 이 항상 null 이다.)
 
   // 5) 세계 이벤트 판정 (12%)
   if (rng.next() < WORLD_EVENT_CHANCE) {
@@ -74,7 +85,22 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     }
   }
 
-  // 6) 레벨업 → 시대 판정 → 신규 해금 — §4·§5 (M4·M5). 통과.
+  // 6) (레벨업 §4 M5) → 붕괴 판정 → 시대 판정 → 지역 해금
+  let collapsed = false;
+  if (shouldCollapse(s)) {
+    entries.push(applyCollapse(s, rng)); // 거점만 무너진다. 연대기·이미지·갤러리는 보존(§15.2)
+    collapsed = true;
+  } else {
+    const power = population(s);
+    const newEra = Math.max(s.world.eraIndex, eraFromPower(power, s.counters.collapses));
+    const newTier = eraTierFromPower(power);
+    if (newEra > s.world.eraIndex || newTier > s.world.eraTier) {
+      s.world.eraIndex = newEra;
+      s.world.eraTier = newTier;
+      entries.push(entry('era', eraTransitionText(newEra, newTier), stamp));
+    }
+    entries.push(...checkRegionUnlocks(s, season));
+  }
 
   // 7) 주차 증가 + 연대기 기록
   advanceWeek(s);
@@ -85,7 +111,7 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     }
   }
 
-  return { state: s, entries };
+  return { state: s, entries, collapsed };
 }
 
 // ────────────────────────── 단계 헬퍼 ──────────────────────────
@@ -110,6 +136,22 @@ function applyWeeklyRecovery(s: GameState): void {
   }
   if (heal > 0) s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + heal);
   if (xp > 0) s.hero.xp += xp; // 레벨업은 M5
+}
+
+/** 식량 적자 연속 카운터 갱신 + 기근 처리 + 붕괴 임박 경고(§15.2). */
+function updateFamineStreak(s: GameState, entries: ChronicleEntry[], stamp: Stamp, rng: Rng): void {
+  if (s.resources.food < 0) {
+    s.counters.foodDeficitStreak += 1;
+    applyFamine(s, entries, stamp, rng);
+    if (
+      s.counters.foodDeficitStreak === COLLAPSE_FOOD_STREAK - COLLAPSE_WARN_BEFORE &&
+      population(s) <= COLLAPSE_POP_MAX
+    ) {
+      entries.push(entry('world', COLLAPSE_WARNING_TEXT, stamp));
+    }
+  } else {
+    s.counters.foodDeficitStreak = 0;
+  }
 }
 
 function applyFamine(s: GameState, entries: ChronicleEntry[], stamp: Stamp, rng: Rng): void {

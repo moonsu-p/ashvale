@@ -24,6 +24,7 @@ import {
   HITBOX_EXPAND,
   WORKER_SIZE,
   WORKER_SPEED,
+  ERA_ZOOM_MS,
 } from '@/data/camera';
 import { GROUND_COLORS, GRID_LINE_COLOR, GRID_LINE_ALPHA } from '@/data/terrain';
 import { SEASON_TINT, PALETTE } from '@/data/palette';
@@ -75,6 +76,7 @@ export class SettlementScene extends Phaser.Scene {
   private placed: PlacedRect[] = [];
   private workers: Worker[] = [];
   private workerRng!: Rng;
+  private expandTween: Phaser.Tweens.Tween | null = null;
 
   /** 건물 탭 콜백 — 씬 → React → 스토어 (§10.3) */
   onBuildingTap: ((id: string) => void) | null = null;
@@ -125,15 +127,53 @@ export class SettlementScene extends Phaser.Scene {
 
   // ── 상태 동기화 (단방향, §10.3) ──
   syncLayout(layout: DerivedLayout): void {
-    const gridChanged = layout.gridSize !== this.gridSize;
+    const prevSize = this.gridSize;
+    const grew = layout.gridSize > prevSize;
+    const gridChanged = layout.gridSize !== prevSize;
     this.layout = layout;
     if (gridChanged) {
       this.gridSize = layout.gridSize;
       this.buildGround();
       this.applySeasonTint();
-      this.fitView();
+      if (grew) this.playExpansion();
+      else this.fitView();
     }
     this.renderBuildings();
+  }
+
+  /** 시대 전환 맵 확장 — 줌아웃 연출(1.5초, §10.4). 탭으로 스킵, reduced-motion 은 즉시. */
+  private playExpansion(): void {
+    const cam = this.cameras.main;
+    const size = this.gridSize * TILE_SRC;
+    cam.centerOn(size / 2, size / 2);
+    const targetZoom = this.fitUserZoom();
+
+    if (this.expandTween) this.expandTween.stop();
+    if (prefersReducedMotion()) {
+      this.applyZoom(targetZoom);
+      return;
+    }
+    // 현재(더 확대된) 줌에서 목표(더 축소된) 줌으로 부드럽게 이동
+    const startCamZoom = cam.zoom;
+    const target = { z: targetZoom * BASE_SCALE };
+    cam.setZoom(startCamZoom);
+    this.expandTween = this.tweens.add({
+      targets: { z: startCamZoom },
+      z: target.z,
+      duration: ERA_ZOOM_MS,
+      ease: 'Cubic.out',
+      onUpdate: (tw) => {
+        const z = tw.getValue();
+        if (z == null) return;
+        cam.setZoom(z);
+        this.userZoom = z / BASE_SCALE;
+        this.updateLOD();
+      },
+      onComplete: () => {
+        this.applyZoom(targetZoom);
+        this.expandTween = null;
+      },
+    });
   }
 
   syncSeason(season: Season): void {
@@ -320,18 +360,24 @@ export class SettlementScene extends Phaser.Scene {
     this.detailLayer.setVisible(this.userZoom >= LOD_HIDE_BELOW);
   }
 
-  private fitView(): void {
+  /** 격자 전체가 화면에 들어오는 가장 큰 스냅 줌 (없으면 최소) */
+  private fitUserZoom(): number {
     const size = this.gridSize * TILE_SRC;
     const cam = this.cameras.main;
     const pad = 1.06;
     const fitCamZoom = Math.min(cam.width / (size * pad), cam.height / (size * pad));
-    const fitUserZoom = fitCamZoom / BASE_SCALE;
+    const target = fitCamZoom / BASE_SCALE;
     let chosen = ZOOM_MIN;
     for (const s of ZOOM_SNAPS) {
-      if (s <= fitUserZoom + 1e-6) chosen = s;
+      if (s <= target + 1e-6) chosen = s;
     }
-    this.applyZoom(chosen);
-    cam.centerOn(size / 2, size / 2);
+    return chosen;
+  }
+
+  private fitView(): void {
+    const size = this.gridSize * TILE_SRC;
+    this.applyZoom(this.fitUserZoom());
+    this.cameras.main.centerOn(size / 2, size / 2);
   }
 
   // ────────────────────────── 입력 ──────────────────────────
@@ -340,6 +386,10 @@ export class SettlementScene extends Phaser.Scene {
     const cam = this.cameras.main;
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // 연출 중이면 탭으로 즉시 완료 (§10.5)
+      if (this.expandTween && this.expandTween.isPlaying()) {
+        this.expandTween.complete();
+      }
       if (this.pointersDown() >= 2) {
         this.beginPinch();
         this.isPanning = false;
@@ -455,6 +505,14 @@ export class SettlementScene extends Phaser.Scene {
 
 function hex(color: string): number {
   return Phaser.Display.Color.HexStringToColor(color).color;
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
 }
 
 /** [0,1) 난수를 가중 인덱스로: 앞쪽 색이 더 자주 나오게 제곱 편향 */

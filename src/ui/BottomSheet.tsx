@@ -10,6 +10,9 @@ import { BuildPanel } from './BuildPanel';
 import { useGameStore } from '@/store/useGameStore';
 import { weeklyBalance } from '@/systems/turn';
 import { population } from '@/systems/economy';
+import { eraName } from '@/systems/progression';
+import { generationOf } from '@/systems/collapse';
+import { tierRoman } from '@/data/eras';
 import type { GameState, ResourceId, StatId } from '@/types/game';
 
 const RESOURCE_ICON: Record<ResourceId, string> = {
@@ -61,7 +64,11 @@ export function BottomSheet({ state }: { state: GameState }) {
     <div className="flex flex-col gap-3 p-3 text-sm">
       <section>
         <Row label="거점">
-          {state.settlement.name} · 인구 {pop}
+          제{generationOf(state)}대 {state.settlement.name} · 인구 {pop}
+        </Row>
+        <Row label="시대">
+          {eraName(state.world.eraIndex)}
+          {state.world.eraTier > 0 ? ` ${tierRoman(state.world.eraTier)}` : ''}
         </Row>
         <Row label="시간">
           {state.world.year}년 {state.world.week}주 · 총 {state.world.turn}턴

@@ -61,6 +61,7 @@ export function createInitialState(now: number, heroName = ''): GameState {
       threatsLost: 0,
       buildsMade: 0,
       collapses: 0,
+      foodDeficitStreak: 0,
       firsts: {},
     },
   };

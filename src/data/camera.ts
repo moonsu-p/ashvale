@@ -33,3 +33,6 @@ export const WORKER_MAX = 24;
 export const WORKER_SPEED = 10;
 /** 워커 스프라이트 지름 (원본 px) */
 export const WORKER_SIZE = 6;
+
+/** 시대 전환 맵 확장 줌아웃 연출 시간 (ms) — §10.4/§10.5 예외 1.5초 */
+export const ERA_ZOOM_MS = 1500;

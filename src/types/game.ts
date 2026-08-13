@@ -97,7 +97,8 @@ export interface GameState {
     threatsLost: number;
     buildsMade: number;
     collapses: number; // 붕괴 횟수, §15.2 재기 보정에 사용
-    firsts: Record<string, boolean>; // 마일스톤 중복 기록 방지
+    foodDeficitStreak: number; // 식량<0 연속 주 수 (§15.2 붕괴 조건 1)
+    firsts: Record<string, boolean>; // 마일스톤 중복 기록 방지 (대성공 추적 포함)
   };
 }
 

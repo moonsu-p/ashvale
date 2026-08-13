@@ -5,6 +5,7 @@ import { PortraitFrame } from '@/ui/PortraitFrame';
 import { StorageBanner } from '@/ui/StorageBanner';
 import { SettlementView } from '@/ui/SettlementView';
 import { BottomSheet } from '@/ui/BottomSheet';
+import { GameWarning } from '@/ui/GameWarning';
 import { AssetGallery } from '@/ui/AssetGallery';
 import { PALETTE } from '@/data/palette';
 
@@ -42,7 +43,12 @@ export default function App() {
 
   return (
     <PortraitFrame
-      banner={<StorageBanner />}
+      banner={
+        <>
+          <StorageBanner />
+          <GameWarning state={state} />
+        </>
+      }
       map={<SettlementView state={state} />}
       sheet={<BottomSheet state={state} />}
     />

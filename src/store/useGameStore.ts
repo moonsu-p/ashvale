@@ -108,10 +108,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   takeTurn: async (action) => {
-    await get().commit((s) => {
-      const rng = createRng(`${s.createdAt}:turn:${s.world.turn}`);
-      return endTurn(s, action, rng).state;
-    });
+    const cur = get().state;
+    if (!cur) return;
+    const rng = createRng(`${cur.createdAt}:turn:${cur.world.turn}`);
+    const { state: next, collapsed } = endTurn(cur, action, rng);
+    set({ state: next });
+    try {
+      await storage.saveState(next);
+      const patch: Partial<Ledger> = { maxTurnReached: next.world.turn };
+      if (collapsed) {
+        // 붕괴는 원장에 남는다. 불러오기가 이를 되돌리지 못한다 (§12.7a)
+        patch.collapses = next.counters.collapses;
+        patch.lastCollapseTurn = next.world.turn;
+      }
+      const ledger = await storage.mergeLedger(patch);
+      set({ ledger });
+    } catch (e) {
+      const msg = e instanceof StorageError ? e.message : '자동 저장에 실패했습니다.';
+      set({ storageBanner: msg });
+    }
   },
 
   build: async (id) => {
