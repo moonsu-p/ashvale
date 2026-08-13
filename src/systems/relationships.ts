@@ -9,6 +9,7 @@ import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 import { ARCHETYPES, PRESET_COMPANIONS, type ArchetypeEffect } from '@/data/archetypes';
 import { PRESET_PATRONS, trustStage } from '@/data/patrons';
 import { adjustFaction } from './factions';
+import { unlockedSlotsFor } from '@/data/slots';
 import {
   talkGain, TALK_FACTION_GAIN,
   GIFT_MATCH, GIFT_MISMATCH, GIFT_DISLIKE, GIFT_COOLDOWN_WEEKS,
@@ -45,6 +46,7 @@ export function applyTalkCompanion(s: GameState, id: string): void {
   }
   c.consecutiveTalks += 1;
   c.affinity = Math.min(methodCap(c.affinity), c.affinity + gain);
+  c.unlockedSlots = unlockedSlotsFor(c.affinity);
   const arch = ARCHETYPES[c.archetypeId];
   if (arch?.faction) adjustFaction(s, arch.faction, TALK_FACTION_GAIN);
 }
@@ -84,6 +86,7 @@ export function applyGiftCompanion(s: GameState, id: string, category: string): 
   const delta = reaction === 'match' ? GIFT_MATCH : reaction === 'dislike' ? GIFT_DISLIKE : GIFT_MISMATCH;
   const capped = Math.min(methodCap(c.affinity), c.affinity + delta);
   c.affinity = Math.max(0, delta < 0 ? c.affinity + delta : capped);
+  c.unlockedSlots = unlockedSlotsFor(c.affinity);
   c.lastGiftTurn = s.world.turn;
   return reaction;
 }

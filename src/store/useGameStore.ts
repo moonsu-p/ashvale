@@ -29,6 +29,9 @@ export interface Dialogue {
   text: string;
 }
 import { createRng } from '@/systems/rng';
+import { applyCollapse } from '@/systems/collapse';
+import { reencodeToWebp, ImageRejected } from '@/images/reencode';
+import { imageKey, unlockedSlotsFor, SLOT_MAP } from '@/data/slots';
 import { DEFAULT_HERO_NAME, DEFAULT_SETTLEMENT_NAME } from '@/data/onboarding';
 import { storage, StorageError } from '@/storage';
 import { requestPersistentStorage, type PersistStatus } from '@/storage/persist';
@@ -87,6 +90,14 @@ interface GameStore {
   /** 선물(턴 무소비, §7.4). category 는 선물 카테고리. */
   giftCompanion: (id: string, category: string) => Promise<void>;
   dismissDialogue: () => void;
+
+  /** 관계 대상 슬롯에 이미지 넣기(재인코딩, §11.4). */
+  setCompanionImage: (id: string, slot: number, file: File) => Promise<void>;
+  deleteCompanionImage: (id: string, slot: number) => Promise<void>;
+  /** 연대기 꾸러미(zip) 내보내기 — 다운로드. */
+  exportBundle: () => Promise<void>;
+  /** 꾸러미 불러오기. §12.7a: 붕괴 이전 시점이면 붕괴를 재적용한다. */
+  importBundle: (file: File) => Promise<void>;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -134,7 +145,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       );
       await storage.saveState(state);
       const ledger = await storage.mergeLedger({ maxTurnReached: 0 });
-      set({ state, ledger, status: 'ready', onboarding: false });
+      set({ state, ledger, status: 'ready', onboarding: false, storageBanner: null, lastDialogue: null });
     } catch (e) {
       const msg = e instanceof StorageError ? e.message : '새 게임을 시작하지 못했습니다.';
       set({ storageBanner: msg });
@@ -265,6 +276,81 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   dismissDialogue: () => set({ lastDialogue: null }),
+
+  setCompanionImage: async (id, slot, file) => {
+    const s = get().state;
+    const c = s?.companions[id];
+    if (!s || !c) return;
+    if (!unlockedSlotsFor(c.affinity).includes(slot)) {
+      set({ storageBanner: '아직 열리지 않은 자리입니다.' });
+      return;
+    }
+    try {
+      const spec = SLOT_MAP[slot];
+      const blob = await reencodeToWebp(file, spec?.longEdge ?? 1200);
+      const key = imageKey(id, slot);
+      await storage.putImage(key, blob);
+      await get().commit((st) => {
+        const n = structuredClone(st);
+        n.companions[id]!.images[slot] = key;
+        n.companions[id]!.unlockedSlots = unlockedSlotsFor(n.companions[id]!.affinity);
+        return n;
+      });
+    } catch (e) {
+      const msg = e instanceof ImageRejected ? e.message : '이미지를 추가하지 못했습니다.';
+      set({ storageBanner: msg });
+    }
+  },
+
+  deleteCompanionImage: async (id, slot) => {
+    try {
+      await storage.deleteImage(imageKey(id, slot));
+    } catch {
+      /* Blob 없어도 진행 */
+    }
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      if (n.companions[id]) n.companions[id]!.images[slot] = null;
+      return n;
+    });
+  },
+
+  exportBundle: async () => {
+    try {
+      const blob = await storage.exportBundle();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ashvale_${now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const msg = e instanceof StorageError ? e.message : '내보내기에 실패했습니다.';
+      set({ storageBanner: msg });
+    }
+  },
+
+  importBundle: async (file) => {
+    try {
+      await storage.importBundle(file);
+    } catch (e) {
+      const msg = e instanceof StorageError ? e.message : '불러오기에 실패했습니다.';
+      set({ storageBanner: msg });
+      return;
+    }
+    const state = await storage.loadState();
+    let ledger = await storage.loadLedger();
+    if (state && ledger && ledger.lastCollapseTurn > state.world.turn) {
+      // 붕괴 이전 시점을 불러왔다 → 붕괴 재적용(§12.7a). 되돌릴 수 없다.
+      const n = structuredClone(state);
+      applyCollapse(n, createRng(`${n.createdAt}:reimport:${n.world.turn}`));
+      await storage.saveState(n);
+      ledger = await storage.mergeLedger({ collapses: n.counters.collapses, lastCollapseTurn: n.world.turn });
+      set({ state: n, ledger, onboarding: false, storageBanner: '이 기록은 몰락 이전 시점이라 몰락이 다시 적용되었습니다.' });
+    } else {
+      set({ state, ledger, onboarding: false });
+    }
+  },
 
   dismissBanner: () => set({ storageBanner: null }),
 }));

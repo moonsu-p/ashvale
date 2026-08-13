@@ -3,8 +3,11 @@
  * 대사는 content 파일에서 온다. 트랙 분기·동행·퀘스트는 M7c, 이미지는 M7b.
  */
 
+import { useState } from 'react';
 import { PALETTE } from '@/data/palette';
 import { ARCHETYPES } from '@/data/archetypes';
+import { CompanionThumb } from './CompanionThumb';
+import { CompanionImages } from './CompanionImages';
 import { FACTION_NAME, FACTION_STAGE_NAME, factionStage } from '@/data/factions';
 import { TRUST_STAGE_NAME, trustStage, PRESET_PATRONS } from '@/data/patrons';
 import { GIFT_HINT_AFFINITY } from '@/data/relationships';
@@ -35,6 +38,7 @@ export function PeoplePanel({ state }: { state: GameState }) {
   const talkPatron = useGameStore((s) => s.talkPatron);
   const giftCompanion = useGameStore((s) => s.giftCompanion);
 
+  const [imagesFor, setImagesFor] = useState<string | null>(null);
   const companions = Object.values(state.companions).filter((c) => c.departedTurn === null);
   const patrons = Object.values(state.patrons).filter((p) => p.met);
 
@@ -67,14 +71,23 @@ export function PeoplePanel({ state }: { state: GameState }) {
         const cats = [arch?.likes[0], arch?.dislikes[0], '금화'].filter(Boolean) as string[];
         return (
           <div key={c.id} className="mb-1 border-t pt-1 text-xs" style={{ borderColor: PALETTE.paperDim }}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CompanionThumb companion={c} slot={0} size={28} />
               <span className="font-medium">
                 {c.name} <span style={{ color: PALETTE.inkSoft }}>· {arch?.label}</span>
               </span>
-              <span className="tabular-nums">
+              <span className="ml-auto tabular-nums">
                 호감 {c.affinity} <span style={{ color: PALETTE.inkSoft }}>{TIER_LABEL[tier]}</span>
               </span>
+              <button
+                onClick={() => setImagesFor(imagesFor === c.id ? null : c.id)}
+                className="rounded px-2 py-0.5"
+                style={{ background: PALETTE.slate, color: PALETTE.paper }}
+              >
+                이미지
+              </button>
             </div>
+            {imagesFor === c.id && <div className="mt-1"><CompanionImages companion={c} /></div>}
             <div className="mt-0.5 flex flex-wrap items-center gap-1">
               <button
                 onClick={() => void talkCompanion(c.id)}

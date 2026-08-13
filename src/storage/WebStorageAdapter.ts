@@ -7,6 +7,7 @@
  * 원장은 max 방향으로만 병합된다 (불러오기가 진행도를 되돌리지 못한다, §12.7a).
  */
 
+import { zipSync, unzipSync } from 'fflate';
 import type { GameState, Ledger } from '@/types/game';
 import { migrateToCurrent, MigrationError } from './migrate';
 import { StorageAdapter, StorageError } from './StorageAdapter';
@@ -161,27 +162,72 @@ export class WebStorageAdapter implements StorageAdapter {
     await this.tx('readwrite', (s) => s.delete(key) as IDBRequest<undefined>);
   }
 
-  // ────────────────────────── 꾸러미 ──────────────────────────
-  // M0: 상태+원장만 담는 JSON 꾸러미(골격). 이미지 포함 zip 파이프라인은 M7b 에서 완성한다.
+  // ────────────────────────── 꾸러미 (zip, §11.5 / §12) ──────────────────────────
+  // 구조 고정: save.json + images/companion_{id}_slot_{n}.webp + ledger.json
 
   async exportBundle(): Promise<Blob> {
     const state = await this.loadState();
+    if (!state) throw new StorageError('내보낼 세이브가 없습니다.');
     const ledger = (await this.loadLedger()) ?? EMPTY_LEDGER;
-    const payload = { kind: 'ashvale.bundle', schema: 1, save: state, ledger };
-    return new Blob([JSON.stringify(payload)], { type: 'application/json' });
+
+    const enc = new TextEncoder();
+    const files: Record<string, Uint8Array> = {
+      'save.json': enc.encode(JSON.stringify(state)),
+      'ledger.json': enc.encode(JSON.stringify(ledger)),
+    };
+
+    // 업로드 이미지: GameState 가 참조하는 키만 담는다
+    for (const c of Object.values(state.companions)) {
+      for (const [slotStr, key] of Object.entries(c.images)) {
+        if (!key) continue;
+        const blob = await this.getImage(key);
+        if (!blob) continue;
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        files[`images/companion_${c.id}_slot_${slotStr}.webp`] = bytes;
+      }
+    }
+
+    const zipped = zipSync(files, { level: 6 });
+    return new Blob([zipped as BlobPart], { type: 'application/zip' });
   }
 
   async importBundle(file: File): Promise<void> {
-    let payload: { save?: unknown; ledger?: Partial<Ledger> };
+    let unzipped: Record<string, Uint8Array>;
     try {
-      payload = JSON.parse(await file.text());
+      unzipped = unzipSync(new Uint8Array(await file.arrayBuffer()));
     } catch (e) {
-      throw new StorageError('꾸러미를 읽을 수 없습니다. 올바른 파일인지 확인하세요.', e);
+      throw new StorageError('꾸러미를 열 수 없습니다. 올바른 zip 파일인지 확인하세요.', e);
     }
-    if (!payload.save) throw new StorageError('꾸러미에 세이브가 없습니다.');
-    // 원장은 max 병합. (§12.7a 규칙 1의 붕괴 재적용은 M4 붕괴 로직에서 처리한다.)
-    if (payload.ledger) await this.mergeLedger(payload.ledger);
-    const migrated = migrateToCurrent(payload.save);
+    const dec = new TextDecoder();
+    const saveBytes = unzipped['save.json'];
+    if (!saveBytes) throw new StorageError('꾸러미에 save.json 이 없습니다.');
+
+    let parsedSave: unknown;
+    try {
+      parsedSave = JSON.parse(dec.decode(saveBytes));
+    } catch (e) {
+      throw new StorageError('꾸러미의 세이브가 손상되었습니다.', e);
+    }
+    const migrated = migrateToCurrent(parsedSave);
+
+    // 원장은 max 병합 (되돌리기 방지, §12.7a)
+    const ledgerBytes = unzipped['ledger.json'];
+    if (ledgerBytes) {
+      try {
+        await this.mergeLedger(JSON.parse(dec.decode(ledgerBytes)) as Partial<Ledger>);
+      } catch {
+        /* 원장 없거나 손상 → 병합 생략 */
+      }
+    }
+
+    // 이미지 복원: images/companion_{id}_slot_{n}.webp → IndexedDB
+    for (const [path, bytes] of Object.entries(unzipped)) {
+      const m = path.match(/^images\/companion_(.+)_slot_(\d+)\.webp$/);
+      if (!m) continue;
+      const key = `companion:${m[1]}:slot:${m[2]}`;
+      await this.putImage(key, new Blob([bytes as BlobPart], { type: 'image/webp' }));
+    }
+
     await this.saveState(migrated);
   }
 }

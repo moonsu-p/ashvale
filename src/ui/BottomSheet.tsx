@@ -10,6 +10,7 @@ import { BuildPanel } from './BuildPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { CharacterPanel } from './CharacterPanel';
 import { PeoplePanel } from './PeoplePanel';
+import { BundlePanel } from './BundlePanel';
 import { useGameStore } from '@/store/useGameStore';
 import { weeklyBalance } from '@/systems/turn';
 import { population } from '@/systems/economy';
@@ -127,6 +128,8 @@ export function BottomSheet({ state }: { state: GameState }) {
       <PeoplePanel state={state} />
 
       <CharacterPanel state={state} />
+
+      <BundlePanel state={state} />
 
       <ChronicleView entries={state.chronicle} />
 
