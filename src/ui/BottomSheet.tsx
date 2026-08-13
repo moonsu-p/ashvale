@@ -9,6 +9,7 @@ import { ChronicleView } from './ChronicleView';
 import { BuildPanel } from './BuildPanel';
 import { ExplorePanel } from './ExplorePanel';
 import { CharacterPanel } from './CharacterPanel';
+import { PeoplePanel } from './PeoplePanel';
 import { useGameStore } from '@/store/useGameStore';
 import { weeklyBalance } from '@/systems/turn';
 import { population } from '@/systems/economy';
@@ -122,6 +123,8 @@ export function BottomSheet({ state }: { state: GameState }) {
       <ExplorePanel state={state} />
 
       <BuildPanel state={state} />
+
+      <PeoplePanel state={state} />
 
       <CharacterPanel state={state} />
 

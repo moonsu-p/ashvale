@@ -20,6 +20,7 @@ import {
   skillCrisisHpReduce,
 } from './skills';
 import { relicRollBonus, relicStatBonus, relicLootPercent, rollRelicFind, relicById } from './relics';
+import { companionBonus } from './relationships';
 
 export interface ExploreStep {
   label: string;
@@ -61,6 +62,9 @@ function bonusSteps(state: GameState, regionStat: StatId): ExploreStep[] {
   if (spire) steps.push({ label: '첨탑', value: spire });
   const relic = relicRollBonus(state);
   if (relic) steps.push({ label: '유물', value: relic });
+  // 동료 보너스(최대값만, §7.2) — 사냥꾼 탐험 판정 / 마법사 통찰 판정
+  const ally = companionBonus(state, 'exploreRoll') + (regionStat === 'insight' ? companionBonus(state, 'insightRoll') : 0);
+  if (ally) steps.push({ label: '동료', value: ally });
   return steps;
 }
 
@@ -93,8 +97,9 @@ export function resolveExplore(state: GameState, regionId: string, rng: Rng): Ex
   const raw = pool.length > 0 ? pool[rng.int(0, pool.length - 1)]! : '';
   const narrative = raw.replace(/\{거점\}/g, state.settlement.name);
 
-  // 전리품: 등급 배수 × (1 + 연금·유물 전리품%)
-  const lootMult = gdef.lootMult * (1 + (skillLootPercent(state) + relicLootPercent(state)) / 100);
+  // 전리품: 등급 배수 × (1 + 연금·유물·동료 전리품%)
+  const lootMult =
+    gdef.lootMult * (1 + (skillLootPercent(state) + relicLootPercent(state) + companionBonus(state, 'lootPercent')) / 100);
   const loot: Partial<Record<ResourceId, number>> = {};
   for (const [r, range] of Object.entries(region.loot) as [ResourceId, [number, number]][]) {
     const rolled = rng.int(range[0], range[1]);
@@ -104,13 +109,15 @@ export function resolveExplore(state: GameState, regionId: string, rng: Rng): Ex
 
   const xp = Math.round(region.difficulty * XP_PER_DIFFICULTY * gdef.xpMult);
 
-  // HP 손실: 야영 랭크만큼 감소, 위기는 결의 랭크로 −25%/랭크 (§6)
+  // HP 손실: 위험도 −동료(사냥꾼80), 야영 랭크 감소, 위기는 결의 랭크·약초사(−50%)로 완화 (§6·§7.2)
+  const danger = Math.max(0, region.danger - companionBonus(state, 'dangerReduce'));
+  const herbPct = companionBonus(state, 'exploreHpPercent') / 100; // 약초사 탐험 HP 손실 −%
   let hpDelta = 0;
   const camp = skillExploreHpReduce(state);
   if (grade === 'failure') {
-    hpDelta = -Math.max(0, Math.floor(region.danger / 2) - camp);
+    hpDelta = -Math.round(Math.max(0, Math.floor(danger / 2) - camp) * (1 - herbPct));
   } else if (grade === 'crisis') {
-    const reduced = Math.max(0, region.danger - camp) * (1 - skillCrisisHpReduce(state));
+    const reduced = Math.max(0, danger - camp) * (1 - skillCrisisHpReduce(state)) * (1 - herbPct);
     hpDelta = -Math.round(reduced);
   }
 

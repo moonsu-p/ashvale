@@ -13,7 +13,21 @@ import { endTurn, type TurnAction } from '@/systems/turn';
 import { applyBuild } from '@/systems/construction';
 import { applyLearnSkill } from '@/systems/skills';
 import { resolveExplore, canExplore, type ExploreOutcome } from '@/systems/explore';
+import {
+  applyGiftCompanion,
+  canGift,
+  giftReactionFor,
+  companionTalkLine,
+  companionGiftLine,
+  companionRefuseCooldown,
+  patronGreetLine,
+} from '@/systems/relationships';
 import type { StatId } from '@/types/game';
+
+export interface Dialogue {
+  speaker: string;
+  text: string;
+}
 import { createRng } from '@/systems/rng';
 import { DEFAULT_HERO_NAME, DEFAULT_SETTLEMENT_NAME } from '@/data/onboarding';
 import { storage, StorageError } from '@/storage';
@@ -34,6 +48,8 @@ interface GameStore {
   onboarding: boolean;
   /** 진행 중인 탐험 판정 결과 — 연출 오버레이용. 확인 시 턴이 종료된다. */
   pendingExplore: ExploreOutcome | null;
+  /** 방금 나눈 대사 — 인물 화면 표시용 */
+  lastDialogue: Dialogue | null;
 
   boot: () => Promise<void>;
   startNewGame: (heroName: string, settlementName: string) => Promise<void>;
@@ -63,6 +79,14 @@ interface GameStore {
   allocateStat: (statId: StatId) => Promise<void>;
   /** 스킬 1랭크 투자(§4). */
   learnSkill: (id: string) => Promise<void>;
+
+  /** 관계 대상 교류(턴 소비, §7.4). */
+  talkCompanion: (id: string) => Promise<void>;
+  /** 의뢰인 교류(턴 소비, §7.3). */
+  talkPatron: (id: string) => Promise<void>;
+  /** 선물(턴 무소비, §7.4). category 는 선물 카테고리. */
+  giftCompanion: (id: string, category: string) => Promise<void>;
+  dismissDialogue: () => void;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -77,6 +101,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   selectedBuilding: null,
   onboarding: false,
   pendingExplore: null,
+  lastDialogue: null,
 
   boot: async () => {
     if (get().status === 'loading') return;
@@ -203,6 +228,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   cancelExplore: () => set({ pendingExplore: null }),
+
+  talkCompanion: async (id) => {
+    const s = get().state;
+    if (!s || !s.companions[id]) return;
+    const line = companionTalkLine(s, id);
+    set({ lastDialogue: { speaker: s.companions[id]!.name, text: line } });
+    await get().takeTurn({ kind: 'talk', target: 'companion', id });
+  },
+
+  talkPatron: async (id) => {
+    const s = get().state;
+    if (!s || !s.patrons[id]?.met) return;
+    const line = patronGreetLine(s, id);
+    set({ lastDialogue: { speaker: id, text: line } });
+    await get().takeTurn({ kind: 'talk', target: 'patron', id });
+  },
+
+  giftCompanion: async (id, category) => {
+    const s = get().state;
+    if (!s) return;
+    const c = s.companions[id];
+    if (!c) return;
+    if (!canGift(s, id)) {
+      set({ lastDialogue: { speaker: c.name, text: companionRefuseCooldown(s, id) } });
+      return;
+    }
+    const reaction = giftReactionFor(c.archetypeId, category);
+    const line = companionGiftLine(s, id, reaction);
+    await get().commit((st) => {
+      const n = structuredClone(st);
+      applyGiftCompanion(n, id, category);
+      return n;
+    });
+    set({ lastDialogue: { speaker: c.name, text: line } });
+  },
+
+  dismissDialogue: () => set({ lastDialogue: null }),
 
   dismissBanner: () => set({ storageBanner: null }),
 }));

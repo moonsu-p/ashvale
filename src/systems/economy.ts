@@ -8,6 +8,7 @@ import { BUILDING_WEEKLY } from '@/data/buildings';
 import { SEASON_PRODUCTION } from '@/data/seasons';
 import { relicProduction } from './relics';
 import { skillProductionPercent } from './skills';
+import { companionBonus } from './relationships';
 
 /** 인구 = 전 건물 레벨 합 (§5) */
 export function population(state: GameState): number {
@@ -39,6 +40,8 @@ export function computeProduction(state: GameState, season: Season): Record<Reso
 
   // 유물 생산 보너스(항아리·셈돌·광석 등, §9)
   for (const r of RESOURCE_IDS) out[r] += relicProduction(state, r);
+  // 사절 동료: 금화 +N/주 (§7.2)
+  out.gold += companionBonus(state, 'goldPerWeek');
 
   // 계절 보정 + 행정 스킬 자원 생산 %
   const mod = SEASON_PRODUCTION[season];

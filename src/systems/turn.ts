@@ -23,6 +23,7 @@ import { shouldCollapse, applyCollapse } from './collapse';
 import { checkRegionUnlocks } from './regions';
 import { applyLevelUps } from './levels';
 import { resolveExplore, applyExploreOutcome } from './explore';
+import { applyTalkCompanion, applyTalkPatron, checkPeopleAppearances } from './relationships';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import {
   FOOD_PER_POP,
@@ -39,7 +40,10 @@ import {
   COLLAPSE_WARNING_TEXT,
 } from '@/data/chronicle-system';
 
-export type TurnAction = { kind: 'rest' } | { kind: 'explore'; regionId: string };
+export type TurnAction =
+  | { kind: 'rest' }
+  | { kind: 'explore'; regionId: string }
+  | { kind: 'talk'; target: 'companion' | 'patron'; id: string };
 
 export interface TurnResult {
   state: GameState;
@@ -67,6 +71,9 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     const exploreRng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
     const outcome = resolveExplore(s, action.regionId, exploreRng);
     entries.push(...applyExploreOutcome(s, outcome, stamp));
+  } else if (action.kind === 'talk') {
+    if (action.target === 'companion') applyTalkCompanion(s, action.id);
+    else applyTalkPatron(s, action.id);
   }
   // rest: 한 주를 흘려보낸다. 즉시 효과 없음.
 
@@ -109,6 +116,7 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
       entries.push(entry('era', eraTransitionText(newEra, newTier), stamp));
     }
     entries.push(...checkRegionUnlocks(s, season));
+    entries.push(...checkPeopleAppearances(s, season));
   }
 
   // 7) 주차 증가 + 연대기 기록
