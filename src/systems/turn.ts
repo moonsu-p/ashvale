@@ -66,7 +66,7 @@ export function endTurn(prev: GameState, action: TurnAction, rng: Rng): TurnResu
     // 탐험 판정은 별도 시드(재현·연출 일치용). 세계 이벤트 rng 스트림과 분리한다.
     const exploreRng = createRng(`${s.createdAt}:turn:${s.world.turn}:explore`);
     const outcome = resolveExplore(s, action.regionId, exploreRng);
-    entries.push(applyExploreOutcome(s, outcome, stamp));
+    entries.push(...applyExploreOutcome(s, outcome, stamp));
   }
   // rest: 한 주를 흘려보낸다. 즉시 효과 없음.
 

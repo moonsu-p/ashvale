@@ -7,6 +7,8 @@ import type { GameState, ResourceId, Season } from '@/types/game';
 import { BUILDING_COST, BUILDING_UNLOCK_ERA } from '@/data/buildings';
 import { buildText } from '@/data/chronicle-system';
 import { seasonOf } from './time';
+import { relicBuildCostPercent } from './relics';
+import { skillBuildCostPercent } from './skills';
 
 export type Cost = Partial<Record<ResourceId, number>>;
 
@@ -20,14 +22,17 @@ export function isUnlocked(state: GameState, id: string): boolean {
   return state.world.eraIndex >= gate;
 }
 
-/** id 를 현재 레벨에서 한 단계 올리는 비용. */
+/** id 를 현재 레벨에서 한 단계 올리는 비용. 설계 스킬·인장 유물로 감면(§4·§9). */
 export function nextCost(state: GameState, id: string): Cost {
   const base = BUILDING_COST[id];
   if (!base) return {};
   const mult = currentLevel(state, id) + 1;
+  // 감면 비율(음수). 최대 −90% 로 제한.
+  const discount = Math.max(-0.9, (skillBuildCostPercent(state) + relicBuildCostPercent(state)) / 100);
+  const factor = 1 + discount;
   const out: Cost = {};
   for (const [r, v] of Object.entries(base) as [ResourceId, number][]) {
-    out[r] = v * mult;
+    out[r] = Math.max(0, Math.round(v * mult * factor));
   }
   return out;
 }

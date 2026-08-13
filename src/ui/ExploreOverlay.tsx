@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PALETTE } from '@/data/palette';
 import { REGION_TEXT, type Grade } from '@/data/content/region-text';
 import { useGameStore } from '@/store/useGameStore';
+import { relicById } from '@/systems/relics';
 import type { ExploreOutcome } from '@/systems/explore';
 import type { ResourceId } from '@/types/game';
 
@@ -152,6 +153,12 @@ export function ExploreOverlay({ outcome }: { outcome: ExploreOutcome }) {
               {outcome.hpDelta < 0 && <span style={{ color: PALETTE.blood }}>HP {outcome.hpDelta}</span>}
               {outcome.downed && <span style={{ color: PALETTE.blood }}>쓰러진 채 실려 옴 · 2주 휴식</span>}
             </div>
+
+            {outcome.relicFound && (
+              <p className="text-sm font-medium" style={{ color: PALETTE.gold }}>
+                유물 발견 — {relicById(outcome.relicFound)?.name}
+              </p>
+            )}
 
             <button
               onClick={() => void confirmExplore()}

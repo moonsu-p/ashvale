@@ -6,6 +6,8 @@
 import type { GameState, ResourceId, Season } from '@/types/game';
 import { BUILDING_WEEKLY } from '@/data/buildings';
 import { SEASON_PRODUCTION } from '@/data/seasons';
+import { relicProduction } from './relics';
+import { skillProductionPercent } from './skills';
 
 /** 인구 = 전 건물 레벨 합 (§5) */
 export function population(state: GameState): number {
@@ -35,10 +37,15 @@ export function computeProduction(state: GameState, season: Season): Record<Reso
     if (w.gold) out.gold += w.gold * level;
   }
 
+  // 유물 생산 보너스(항아리·셈돌·광석 등, §9)
+  for (const r of RESOURCE_IDS) out[r] += relicProduction(state, r);
+
+  // 계절 보정 + 행정 스킬 자원 생산 %
   const mod = SEASON_PRODUCTION[season];
+  const adminMult = 1 + skillProductionPercent(state) / 100;
   for (const r of RESOURCE_IDS) {
-    const m = mod[r];
-    if (m) out[r] = Math.round(out[r] * (1 + m));
+    const seasonMult = 1 + (mod[r] ?? 0);
+    out[r] = Math.round(out[r] * seasonMult * adminMult);
   }
   return out;
 }

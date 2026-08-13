@@ -11,7 +11,9 @@ import type { GameState, Ledger } from '@/types/game';
 import { createInitialState } from '@/systems/newGame';
 import { endTurn, type TurnAction } from '@/systems/turn';
 import { applyBuild } from '@/systems/construction';
+import { applyLearnSkill } from '@/systems/skills';
 import { resolveExplore, canExplore, type ExploreOutcome } from '@/systems/explore';
+import type { StatId } from '@/types/game';
 import { createRng } from '@/systems/rng';
 import { DEFAULT_HERO_NAME, DEFAULT_SETTLEMENT_NAME } from '@/data/onboarding';
 import { storage, StorageError } from '@/storage';
@@ -56,6 +58,11 @@ interface GameStore {
   /** 건설/증축(§5). 건설은 턴을 소비하지 않는다. */
   build: (id: string) => Promise<void>;
   selectBuilding: (id: string | null) => void;
+
+  /** 능력치 점수 1 배분(§4). */
+  allocateStat: (statId: StatId) => Promise<void>;
+  /** 스킬 1랭크 투자(§4). */
+  learnSkill: (id: string) => Promise<void>;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -166,6 +173,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   selectBuilding: (id) => set({ selectedBuilding: id }),
+
+  allocateStat: async (statId) => {
+    await get().commit((s) => {
+      if (s.hero.statPoints <= 0) return s;
+      const next = structuredClone(s);
+      next.hero.stats[statId] += 1;
+      next.hero.statPoints -= 1;
+      return next;
+    });
+  },
+
+  learnSkill: async (id) => {
+    await get().commit((s) => applyLearnSkill(s, id));
+  },
 
   explore: (regionId) => {
     const s = get().state;
