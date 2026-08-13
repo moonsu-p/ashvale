@@ -23,3 +23,13 @@ export const TAP_MOVE_MAX = 12;
 
 /** 팬 한계용 여백 (타일 수) */
 export const PAN_MARGIN_TILES = 3;
+
+/** 건물 히트박스는 스프라이트보다 가로세로 각 이만큼 크게 (§10.4, px) */
+export const HITBOX_EXPAND = 8;
+
+/** 주민 워커 상한 (§10.4, §10.6 성능 예산) */
+export const WORKER_MAX = 24;
+/** 워커 이동 속도 (원본 px/초). 정수배 스케일과 무관한 월드 좌표 기준 */
+export const WORKER_SPEED = 10;
+/** 워커 스프라이트 지름 (원본 px) */
+export const WORKER_SIZE = 6;

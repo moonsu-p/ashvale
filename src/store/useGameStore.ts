@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import type { GameState, Ledger } from '@/types/game';
 import { createInitialState } from '@/systems/newGame';
 import { endTurn, type TurnAction } from '@/systems/turn';
+import { applyBuild } from '@/systems/construction';
 import { createRng } from '@/systems/rng';
 import { storage, StorageError } from '@/storage';
 import { requestPersistentStorage, type PersistStatus } from '@/storage/persist';
@@ -23,6 +24,8 @@ interface GameStore {
   /** 저장/불러오기 실패 배너 (조용히 넘기지 않는다, §12) */
   storageBanner: string | null;
   persist: PersistStatus | null;
+  /** 맵에서 탭한 건물 (건설/증축 패널 강조용) */
+  selectedBuilding: string | null;
 
   boot: () => Promise<void>;
   newChronicle: (heroName?: string) => Promise<void>;
@@ -36,6 +39,10 @@ interface GameStore {
 
   /** 턴 종료(§2 8단계)를 실행하고 저장한다. RNG 는 재현 가능하게 시드한다. */
   takeTurn: (action: TurnAction) => Promise<void>;
+
+  /** 건설/증축(§5). 건설은 턴을 소비하지 않는다. */
+  build: (id: string) => Promise<void>;
+  selectBuilding: (id: string | null) => void;
 }
 
 /** now 주입: 규칙은 순수 함수라 시각을 밖에서 넣는다. 여기(스토어)는 경계라 Date 사용 허용. */
@@ -47,6 +54,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   status: 'idle',
   storageBanner: null,
   persist: null,
+  selectedBuilding: null,
 
   boot: async () => {
     if (get().status === 'loading') return;
@@ -105,6 +113,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return endTurn(s, action, rng).state;
     });
   },
+
+  build: async (id) => {
+    await get().commit((s) => applyBuild(s, id));
+  },
+
+  selectBuilding: (id) => set({ selectedBuilding: id }),
 
   dismissBanner: () => set({ storageBanner: null }),
 }));

@@ -27,6 +27,59 @@ export const BUILDING_WEEKLY: Record<string, BuildingWeekly> = {
   // library(SP·통찰)·guildhall(평판·호감)·academy·spire 는 각 시스템 마일스톤에서
 };
 
+import type { ResourceId } from '@/types/game';
+
+/** 건물 기본 건설 비용 (§5). 다음 레벨 비용 = 기본 × (현재 레벨 + 1). */
+export const BUILDING_COST: Record<string, Partial<Record<ResourceId, number>>> = {
+  hall: { wood: 20, stone: 10 },
+  lumber: { wood: 10, gold: 5 },
+  farm: { wood: 15, gold: 5 },
+  quarry: { wood: 20, gold: 10 },
+  wall: { stone: 25, wood: 10 },
+  yard: { wood: 25, stone: 10 },
+  market: { wood: 30, stone: 20, gold: 20 },
+  library: { stone: 35, gold: 25 },
+  shrine: { stone: 30, gold: 20 },
+  guildhall: { wood: 50, stone: 40, gold: 40 },
+  academy: { stone: 70, gold: 80 },
+  spire: { stone: 120, gold: 150 },
+};
+
+/** 해금 시대 (§5). eraIndex 가 이 값 이상이어야 건설 가능. */
+export const BUILDING_UNLOCK_ERA: Record<string, number> = {
+  hall: 0,
+  lumber: 0,
+  farm: 0,
+  quarry: 1,
+  wall: 1,
+  yard: 1,
+  market: 2,
+  library: 2,
+  shrine: 2,
+  guildhall: 3,
+  academy: 4,
+  spire: 5,
+};
+
+/** 배치(deriveLayout) 순서. 회관을 먼저 중앙에 두고 나머지를 나선으로 채운다 (§10.4). */
+export const BUILD_ORDER: string[] = [
+  'hall',
+  'lumber',
+  'farm',
+  'quarry',
+  'yard',
+  'market',
+  'library',
+  'shrine',
+  'guildhall',
+  'academy',
+  'spire',
+  'house',
+];
+
+/** 성벽은 자리를 차지하지 않고 둘레 링으로 그린다 (§5, §10.4). 배치에서 제외한다. */
+export const RING_BUILDINGS = new Set<string>(['wall']);
+
 /** 연대기·안내 표기용 건물명 (§5) */
 export const BUILDING_NAMES: Record<string, string> = {
   hall: '회관',

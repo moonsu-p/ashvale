@@ -12,3 +12,9 @@ export function famineBuildingLossText(buildingId: string): string {
   const name = BUILDING_NAMES[buildingId] ?? '집';
   return `굶주림에 ${name} 하나가 헐렸다.`;
 }
+
+/** 건설·증축 연대기 (무주어 문어체, 과거형). */
+export function buildText(buildingId: string, newLevel: number): string {
+  const name = BUILDING_NAMES[buildingId] ?? '건물';
+  return newLevel <= 1 ? `${name}을 세웠다.` : `${name}을 넓혔다.`;
+}
