@@ -3,7 +3,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { isDebugAssets } from '@/render/debugAssets';
 import { PortraitFrame } from '@/ui/PortraitFrame';
 import { StorageBanner } from '@/ui/StorageBanner';
-import { SettlementSlot } from '@/ui/SettlementSlot';
+import { SettlementView } from '@/ui/SettlementView';
 import { BottomSheet } from '@/ui/BottomSheet';
 import { AssetGallery } from '@/ui/AssetGallery';
 import { PALETTE } from '@/data/palette';
@@ -43,7 +43,7 @@ export default function App() {
   return (
     <PortraitFrame
       banner={<StorageBanner />}
-      map={<SettlementSlot state={state} />}
+      map={<SettlementView state={state} />}
       sheet={<BottomSheet state={state} />}
     />
   );
