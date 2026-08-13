@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- 자체 호스팅 앱 아이콘. 색은 팔레트 값(ink/slate/gold/rift). maskable 안전영역 고려 -->
+  <rect width="512" height="512" fill="#1E1D22"/>
+  <rect x="96" y="96" width="320" height="320" rx="36" fill="#4A4A4E"/>
+  <!-- 첨탑 실루엣 -->
+  <polygon points="256,150 232,300 280,300" fill="#B9B4A6"/>
+  <rect x="232" y="300" width="48" height="70" fill="#8E897B"/>
+  <!-- 별의 균열 상징 -->
+  <polygon points="256,120 268,158 306,158 275,182 287,220 256,196 225,220 237,182 206,158 244,158"
+           fill="#D2A33C"/>
+  <circle cx="256" cy="352" r="10" fill="#9C7FD4"/>
+</svg>

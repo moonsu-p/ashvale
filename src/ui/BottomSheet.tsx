@@ -1,0 +1,99 @@
+/**
+ * 하단 UI 시트 (M0 골격) — 상태가 저장·복원됨을 눈으로 확인할 수 있게 요약을 보여준다.
+ * 턴 진행·건설 등 실제 조작은 이후 마일스톤에서 추가한다.
+ */
+
+import { PALETTE } from '@/data/palette';
+import { AssetPlaceholder } from './AssetPlaceholder';
+import { useGameStore } from '@/store/useGameStore';
+import type { GameState, ResourceId, StatId } from '@/types/game';
+
+const RESOURCE_ICON: Record<ResourceId, string> = {
+  wood: 'ui.wood',
+  stone: 'ui.stone',
+  food: 'ui.food',
+  gold: 'ui.gold',
+};
+const STAT_ICON: Record<StatId, string> = {
+  might: 'ui.might',
+  agility: 'ui.agility',
+  insight: 'ui.insight',
+  will: 'ui.will',
+};
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span style={{ color: PALETTE.inkSoft }}>{label}</span>
+      <span className="font-medium">{children}</span>
+    </div>
+  );
+}
+
+export function BottomSheet({ state }: { state: GameState }) {
+  const newChronicle = useGameStore((s) => s.newChronicle);
+  const persist = useGameStore((s) => s.persist);
+  const ledger = useGameStore((s) => s.ledger);
+
+  const onNew = () => {
+    // 2단 확인 (§12). 정식 확인 UI 는 이후 마일스톤에서.
+    if (!window.confirm('지금까지의 연대기를 백업하고 새로 시작합니다. 계속할까요?')) return;
+    if (!window.confirm('되돌릴 수 없습니다. 정말 새 연대기를 시작할까요?')) return;
+    void newChronicle();
+  };
+
+  const persistText =
+    persist == null ? '확인 중' : !persist.supported ? '미지원' : persist.persisted ? '지속 저장 승인됨' : '최선 노력 모드';
+
+  return (
+    <div className="flex flex-col gap-3 p-3 text-sm">
+      <section>
+        <Row label="거점">{state.settlement.name}</Row>
+        <Row label="시간">
+          {state.world.year}년 {state.world.week}주 · 총 {state.world.turn}턴
+        </Row>
+        <Row label="영웅">
+          Lv.{state.hero.level} · HP {state.hero.hp}/{state.hero.maxHp}
+        </Row>
+      </section>
+
+      <section>
+        <h2 className="mb-1 font-medium">자원</h2>
+        <div className="grid grid-cols-4 gap-2">
+          {(Object.keys(RESOURCE_ICON) as ResourceId[]).map((r) => (
+            <div key={r} className="flex flex-col items-center gap-1">
+              <AssetPlaceholder id={RESOURCE_ICON[r]} size={32} />
+              <span className="text-xs">{state.resources[r]}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-1 font-medium">능력치</h2>
+        <div className="grid grid-cols-4 gap-2">
+          {(Object.keys(STAT_ICON) as StatId[]).map((s) => (
+            <div key={s} className="flex flex-col items-center gap-1">
+              <AssetPlaceholder id={STAT_ICON[s]} size={32} />
+              <span className="text-xs">{state.hero.stats[s]}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="text-xs" style={{ color: PALETTE.inkSoft }}>
+        <Row label="저장소">{persistText}</Row>
+        <Row label="원장 최대 도달 턴">{ledger?.maxTurnReached ?? 0}</Row>
+        <Row label="세이브 식별(createdAt)">{state.createdAt}</Row>
+      </section>
+
+      <button
+        onClick={onNew}
+        className="mt-1 w-full rounded py-2 text-sm font-medium"
+        style={{ background: PALETTE.blood, color: PALETTE.paper }}
+      >
+        새 연대기 시작
+      </button>
+    </div>
+  );
+}
