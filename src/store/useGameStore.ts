@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import type { Dir, GameState, Ledger } from '@/types/game';
+import type { DialogueScript, DialogueState } from '@/types/dialogue';
 import type { SaveReason } from '@/data/save';
 import { newGame, newLedger } from '@/systems/newGame';
 import { getStorage, loadGame, saveAll, StorageError } from '@/storage';
@@ -32,6 +33,16 @@ interface GameStore {
   startNewGame: (opts?: { heroName?: string; townName?: string }) => Promise<void>;
   save: (reason: SaveReason) => Promise<void>;
   requestPersistence: () => Promise<void>;
+
+  /** 대화 레이어. 열려 있으면 필드 입력이 멈춘다 */
+  dialogue: DialogueState | null;
+  openDialogue: (script: DialogueScript) => void;
+  /** A 또는 대사창 탭. §8.3 의 상태 기계를 한 칸 민다 */
+  advanceDialogue: () => void;
+  /** 타이핑이 끝났다. 대기(▼)로만 넘긴다 — 여러 번 불려도 같은 결과여야 한다 */
+  finishTyping: () => void;
+  chooseDialogue: (optionId: string) => void;
+  closeDialogue: () => void;
 
   setPrompt: (label: string | null) => void;
   /** 방향만 바꾼다 */
@@ -62,6 +73,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   migratedFrom: null,
   persisted: false,
   prompt: null,
+  dialogue: null,
 
   async boot() {
     const storage = getStorage();
@@ -127,6 +139,74 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const storage = getStorage();
     const granted = await storage.requestPersistence();
     set({ persisted: granted || (await storage.isPersisted()) });
+  },
+
+  openDialogue(script) {
+    if (script.lines.length === 0) return;
+    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+  },
+
+  /**
+   * §8.3: 닫힘 → 열림(타이핑) → 대기(▼) → [다음 줄 | 선택지 | 닫힘]
+   * 선택지가 떠 있을 때 A 는 아무 동작도 하지 않는다. 반드시 탭으로 고른다.
+   */
+  advanceDialogue() {
+    const d = get().dialogue;
+    if (d === null) return;
+
+    if (d.phase === 'choosing') return;
+
+    // 타이핑 중이면 먼저 전체를 보여 준다
+    if (d.phase === 'typing') {
+      set({ dialogue: { ...d, phase: 'waiting' } });
+      return;
+    }
+
+    // 마무리 대사를 보고 있었으면 여기서 닫는다
+    if (d.reply !== null) {
+      set({ dialogue: null });
+      return;
+    }
+
+    if (d.lineIndex < d.script.lines.length - 1) {
+      set({ dialogue: { ...d, lineIndex: d.lineIndex + 1, phase: 'typing' } });
+      return;
+    }
+
+    const choices = d.script.choices;
+    if (choices !== undefined && choices.length > 0) {
+      set({ dialogue: { ...d, phase: 'choosing' } });
+      return;
+    }
+
+    set({ dialogue: null });
+  },
+
+  /**
+   * 다 찍혔다는 신호. `advanceDialogue` 를 쓰면 안 된다 —
+   * 그건 한 칸 미는 동작이라 두 번 불리면 줄을 건너뛴다.
+   */
+  finishTyping() {
+    const d = get().dialogue;
+    if (d === null || d.phase !== 'typing') return;
+    set({ dialogue: { ...d, phase: 'waiting' } });
+  },
+
+  chooseDialogue(optionId) {
+    const d = get().dialogue;
+    if (d === null || d.phase !== 'choosing') return;
+
+    const option = d.script.choices?.find((c) => c.id === optionId);
+    // 마무리 대사가 없으면 고르는 즉시 닫힌다
+    if (option === undefined || option.reply === '') {
+      set({ dialogue: null });
+      return;
+    }
+    set({ dialogue: { ...d, phase: 'typing', reply: option.reply } });
+  },
+
+  closeDialogue() {
+    set({ dialogue: null });
   },
 
   setPrompt(label) {

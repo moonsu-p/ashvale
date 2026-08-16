@@ -22,6 +22,17 @@ export interface InputSnapshot {
 
 const state: InputSnapshot = { held: null, pressCount: 0, actionCount: 0 };
 
+/**
+ * A 를 누를 때 알려 줄 곳. 대화 레이어가 여기 붙는다.
+ * 씬은 매 프레임 읽어 가지만, React 쪽은 60fps 로 훑을 수 없어 알림이 필요하다.
+ */
+const actionListeners = new Set<() => void>();
+
+export function onActionPress(fn: () => void): () => void {
+  actionListeners.add(fn);
+  return () => actionListeners.delete(fn);
+}
+
 export function pressDir(dir: Dir): void {
   state.held = dir;
   state.pressCount += 1;
@@ -38,6 +49,7 @@ export function releaseAll(): void {
 
 export function pressAction(): void {
   state.actionCount += 1;
+  for (const fn of actionListeners) fn();
 }
 
 export function readInput(): InputSnapshot {

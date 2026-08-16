@@ -109,8 +109,24 @@ export function buildTownMap(): TileMapData {
       solid: false,
     },
     // 인물은 밀어서 지나갈 수 없다 (§5). 통로를 막지 않는 자리에 세운다
-    { id: 'npc-a', type: 'npc', x: 8, y: 8, sprite: 'char.patron.bartek', solid: true },
-    { id: 'npc-b', type: 'npc', x: 13, y: 12, sprite: 'char.comp.1', solid: true },
+    {
+      id: 'npc-a',
+      type: 'npc',
+      x: 8,
+      y: 8,
+      sprite: 'char.patron.bartek',
+      voice: { kind: 'patron', id: 'bartek' },
+      solid: true,
+    },
+    {
+      id: 'npc-b',
+      type: 'npc',
+      x: 13,
+      y: 12,
+      sprite: 'char.comp.1',
+      voice: { kind: 'companion', id: 'knight' },
+      solid: true,
+    },
     { id: 'notice', type: 'node', x: 12, y: 7, solid: true },
   ];
 

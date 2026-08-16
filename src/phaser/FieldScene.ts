@@ -59,6 +59,8 @@ export class FieldScene extends Phaser.Scene {
   private lastPressCount = 0;
   private lastActionCount = 0;
   private lastPrompt: string | null = null;
+  /** 대화가 열려 있으면 필드는 입력을 받지 않는다 */
+  private paused = false;
 
   constructor(cbs: FieldSceneCallbacks) {
     super({ key: FieldScene.KEY });
@@ -234,10 +236,30 @@ export class FieldScene extends Phaser.Scene {
 
   // ── 매 프레임 ───────────────────────────────────────────
 
+  /** 대화가 열리고 닫힐 때 호스트가 알려 준다 */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    this.queued = null;
+
+    // 멈춤이 풀리는 그 순간의 누름은 대화를 닫으려고 누른 것이다.
+    // 여기서 카운터를 맞춰 두지 않으면, 그 한 번이 다음 프레임에 대화를 다시 연다
+    const input = readInput();
+    this.lastActionCount = input.actionCount;
+    this.lastPressCount = input.pressCount;
+  }
+
   override update(time: number): void {
     if (this.map === null || this.heroSprite === null) return;
 
     const input = readInput();
+
+    // 대화 중에 눌린 것은 대화가 가져간다. 여기서는 흘려보내되, 카운터는 맞춰 둔다 —
+    // 안 맞춰 두면 대화를 닫은 그 누름이 다시 대화를 연다
+    if (this.paused) {
+      this.lastActionCount = input.actionCount;
+      this.lastPressCount = input.pressCount;
+      return;
+    }
 
     if (input.actionCount !== this.lastActionCount) {
       this.lastActionCount = input.actionCount;

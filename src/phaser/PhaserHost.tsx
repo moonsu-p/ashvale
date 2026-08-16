@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { PALETTE } from '@/data/palette';
 import { useGameStore } from '@/store/useGameStore';
+import { buildScript } from '@/systems/dialogue';
 import { FieldScene } from './FieldScene';
 
 export function PhaserHost() {
@@ -25,8 +26,12 @@ export function PhaserHost() {
       onStep: (to, dir) => useGameStore.getState().stepHero(to, dir),
       onFace: (dir) => useGameStore.getState().faceHero(dir),
       onPrompt: (label) => useGameStore.getState().setPrompt(label),
-      onAction: () => {
-        // 대화는 아직 없다. 말을 거는 일은 대화 시스템이 붙을 때 이어진다
+      onAction: (object) => {
+        if (object === null || object.voice === undefined) return;
+        const store = useGameStore.getState();
+        const townName = store.state?.town.name ?? '';
+        const script = buildScript(object.voice, { townName });
+        if (script !== null) store.openDialogue(script);
       },
     });
 
@@ -44,8 +49,15 @@ export function PhaserHost() {
 
     // 첫 상태를 밀어 넣고, 이후 변화도 이 통로로만 보낸다
     if (store.state !== null) scene.syncFromState(store.state);
+    let wasTalking = false;
     const unsubscribe = useGameStore.subscribe((s) => {
       if (s.state !== null) scene.syncFromState(s.state);
+      // 대화가 열려 있는 동안 필드는 입력을 받지 않는다
+      const talking = s.dialogue !== null;
+      if (talking !== wasTalking) {
+        wasTalking = talking;
+        scene.setPaused(talking);
+      }
     });
 
     const resize = () => {

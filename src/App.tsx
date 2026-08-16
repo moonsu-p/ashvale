@@ -29,6 +29,7 @@ export default function App() {
   const error = useGameStore((s) => s.error);
   const backupKey = useGameStore((s) => s.backupKey);
   const prompt = useGameStore((s) => s.prompt);
+  const talking = useGameStore((s) => s.dialogue !== null);
   const boot = useGameStore((s) => s.boot);
   const startNewGame = useGameStore((s) => s.startNewGame);
 
@@ -91,8 +92,8 @@ export default function App() {
   return (
     <Frame>
       <Hud state={state} />
-      <FieldBand prompt={prompt} />
-      <ControlsBand actionActive={prompt !== null} />
+      <FieldBand prompt={prompt} talking={talking} />
+      <ControlsBand actionActive={talking || prompt !== null} />
       {error !== null && (
         <p className="bg-blood px-2 py-1 text-[11px] text-paper">{error}</p>
       )}

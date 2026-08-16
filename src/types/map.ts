@@ -40,6 +40,8 @@ export interface MapObject {
   target?: string;
   /** npc 일 때 쓸 에셋 매니페스트 id */
   sprite?: string;
+  /** npc 일 때 대사를 끌어올 곳. 없으면 말을 걸어도 대화가 열리지 않는다 */
+  voice?: { kind: 'companion' | 'patron'; id: string };
   /** 지나갈 수 없는가. 인물은 밀어서 지나갈 수 없다 (§5) */
   solid?: boolean;
 }

@@ -6,12 +6,20 @@
 
 import { PhaserHost } from '@/phaser/PhaserHost';
 import { InteractPrompt } from './InteractPrompt';
+import { DialogueLayer } from './dialogue/DialogueLayer';
 
-export function FieldBand({ prompt }: { prompt: string | null }) {
+interface Props {
+  prompt: string | null;
+  talking: boolean;
+}
+
+export function FieldBand({ prompt, talking }: Props) {
   return (
     <main className="relative min-h-field flex-1 overflow-hidden bg-ink">
       <PhaserHost />
-      <InteractPrompt label={prompt} />
+      {/* 대화 중에는 상호작용 프롬프트를 감춘다. 대사창이 그 자리를 쓴다 */}
+      {!talking && <InteractPrompt label={prompt} />}
+      <DialogueLayer />
     </main>
   );
 }
