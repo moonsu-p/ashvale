@@ -8,7 +8,7 @@
  *  - 외부 요청을 하지 않는다. 같은 출처가 아닌 요청은 그냥 통과시킨다 (§14 비통신).
  */
 
-const CACHE_VERSION = 'ashvale-v1';
+const CACHE_VERSION = 'ashvale-v2';
 
 /** 설치할 때 미리 담아 둘 것. 해시가 붙는 번들 파일은 실행 중에 담는다 */
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
@@ -51,33 +51,47 @@ self.addEventListener('fetch', (event) => {
   // 오프라인에서 앱이 뜨는 건 이 갈래 덕이다
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
+      (async () => {
+        const cache = await caches.open(CACHE_VERSION);
+        try {
+          const response = await fetch(request);
+          stash(event, cache, request, response);
           return response;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((hit) => hit ?? caches.match('./index.html'))
-            .then((hit) => hit ?? Response.error()),
-        ),
+        } catch {
+          return (await cache.match(request)) ?? (await cache.match('./index.html')) ?? Response.error();
+        }
+      })(),
     );
     return;
   }
 
   // 나머지는 캐시 우선. 번들·에셋은 이름에 해시가 붙어 낡을 일이 없다
   event.respondWith(
-    caches.match(request).then((hit) => {
+    (async () => {
+      const cache = await caches.open(CACHE_VERSION);
+      const hit = await cache.match(request);
       if (hit !== undefined) return hit;
-      return fetch(request).then((response) => {
-        if (response.ok && response.type === 'basic') {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
-    }),
+
+      const response = await fetch(request);
+      stash(event, cache, request, response);
+      return response;
+    })(),
   );
 });
+
+/**
+ * 응답 사본을 캐시에 넣는다.
+ *
+ * 여기 순서가 중요하다. `clone()` 은 몸통 스트림을 둘로 가르는데, 갈라 놓고
+ * 한쪽을 바로 읽지 않으면 버퍼가 차면서 **원본 쪽까지 멈춘다.**
+ * 캐시를 미리 열어 두고, 사본을 만든 직후에 곧바로 넘기는 이유다.
+ * 그리고 `waitUntil` 로 붙잡아야 쓰기가 끝나기 전에 워커가 잠들지 않는다.
+ *
+ * 캐시 쓰기가 실패해도 응답은 그대로 나간다. 저장이 안 되는 건 다음 실행에서
+ * 다시 받으면 그만이지만, 여기서 실패를 흘리면 화면이 통째로 안 뜬다.
+ */
+function stash(event, cache, request, response) {
+  if (!response.ok || response.type !== 'basic') return;
+  const copy = response.clone();
+  event.waitUntil(cache.put(request, copy).catch(() => {}));
+}

@@ -6,9 +6,8 @@
  *  - Kenney 타일셋은 `spacing: 1`, 캐릭터 팩은 `spacing: 0`. 값을 공유하지 않는다.
  *  - 여기 없는 에셋은 프로젝트에 넣지 않는다.
  *
- * 지금은 전부 null 이다. 원본 타일셋은 아직 받지 않았고, 캐릭터 15장은
- * raw-assets 에 있지만 어느 장이 누구인지는 배역을 정하면서 확정한다
- * (src/data/characters.ts 의 배정 지침).
+ * 캐릭터 15장은 조달됐다. 타일셋은 아직 원본을 받지 않아 null 이고,
+ * 그 자리는 플레이스홀더 지형색으로 그린다.
  */
 
 import type { PaletteKey } from './palette';
@@ -101,10 +100,16 @@ const ROLE_COLOR: Record<'hero' | 'companion' | 'patron', PaletteKey> = {
   patron: 'stone',
 };
 
-const CHARACTERS: AssetEntry[] = CHAR_ROSTER.map((slot) => ({
+/**
+ * 배역 배정은 기획서 §12 의 표를 그대로 따른다.
+ *   1 = 플레이어 / 2–9 = 관계 대상 8명 / 10–15 = 의뢰인 6명
+ * CHAR_ROSTER 의 나열 순서가 이 번호와 같으므로 자리 순서로 짝지으면 된다.
+ * 파일은 scripts/copy-characters.ts 가 01..15.png 로 옮겨 둔다.
+ */
+const CHARACTERS: AssetEntry[] = CHAR_ROSTER.map((slot, i) => ({
   id: slot.spriteId,
   kind: 'character' as const,
-  path: null,
+  path: `assets/characters/${String(i + 1).padStart(2, '0')}.png`,
   sheet: CHARACTER_SHEET,
   placeholder: {
     label: slot.bind === '*' ? `${slot.role} 예비` : slot.bind,

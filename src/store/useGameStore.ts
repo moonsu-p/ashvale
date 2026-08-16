@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { GameState, Ledger } from '@/types/game';
+import type { Dir, GameState, Ledger } from '@/types/game';
 import type { SaveReason } from '@/data/save';
 import { newGame, newLedger } from '@/systems/newGame';
 import { getStorage, loadGame, saveAll, StorageError } from '@/storage';
@@ -25,12 +25,27 @@ interface GameStore {
   migratedFrom: number | null;
   /** navigator.storage.persist() 승인 여부 */
   persisted: boolean;
+  /** 하단 상호작용 문구. 씬이 올려 준다. 저장하지 않는다 */
+  prompt: string | null;
 
   boot: () => Promise<void>;
   startNewGame: (opts?: { heroName?: string; townName?: string }) => Promise<void>;
   save: (reason: SaveReason) => Promise<void>;
   requestPersistence: () => Promise<void>;
+
+  setPrompt: (label: string | null) => void;
+  /** 방향만 바꾼다 */
+  faceHero: (dir: Dir) => void;
+  /** 한 칸 옮긴다 */
+  stepHero: (to: { x: number; y: number }, dir: Dir) => void;
 }
+
+/**
+ * 걸음마다 저장하면 140ms 간격으로 localStorage 를 두드리게 된다.
+ * 발이 멈추고 조금 지난 뒤 한 번만 쓴다.
+ */
+const SETTLE_MS = 800;
+let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
 function describe(err: unknown): string {
   if (err instanceof StorageError) return err.message;
@@ -46,6 +61,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   backupKey: null,
   migratedFrom: null,
   persisted: false,
+  prompt: null,
 
   async boot() {
     const storage = getStorage();
@@ -112,4 +128,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const granted = await storage.requestPersistence();
     set({ persisted: granted || (await storage.isPersisted()) });
   },
+
+  setPrompt(label) {
+    if (get().prompt !== label) set({ prompt: label });
+  },
+
+  faceHero(dir) {
+    const { state } = get();
+    if (state === null || state.world.heroTile.dir === dir) return;
+    set({
+      state: {
+        ...state,
+        world: { ...state.world, heroTile: { ...state.world.heroTile, dir } },
+      },
+    });
+    scheduleSettleSave(get);
+  },
+
+  stepHero(to, dir) {
+    const { state } = get();
+    if (state === null) return;
+    set({
+      state: {
+        ...state,
+        world: { ...state.world, heroTile: { x: to.x, y: to.y, dir } },
+      },
+    });
+    scheduleSettleSave(get);
+  },
 }));
+
+/**
+ * 어디에 서 있는지는 세이브의 일부다 (§4). 다만 걸음마다 쓰지는 않는다 —
+ * 발이 멎고 SETTLE_MS 뒤에 한 번만 쓴다.
+ */
+function scheduleSettleSave(get: () => GameStore): void {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => {
+    void get().save('map-change');
+  }, SETTLE_MS);
+}

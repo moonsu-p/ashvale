@@ -4,6 +4,7 @@ import { DebugAssets, isDebugAssets } from '@/render/DebugAssets';
 import { Hud } from '@/ui/Hud';
 import { FieldBand } from '@/ui/FieldBand';
 import { ControlsBand } from '@/ui/ControlsBand';
+import { useKeyboard } from '@/ui/useKeyboard';
 
 /** 393dp 세로 한 통. 넓은 화면에서는 가운데로 모은다 */
 function Frame({ children }: { children: React.ReactNode }) {
@@ -25,13 +26,13 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function App() {
   const status = useGameStore((s) => s.status);
   const state = useGameStore((s) => s.state);
-  const ledger = useGameStore((s) => s.ledger);
   const error = useGameStore((s) => s.error);
   const backupKey = useGameStore((s) => s.backupKey);
-  const migratedFrom = useGameStore((s) => s.migratedFrom);
-  const persisted = useGameStore((s) => s.persisted);
+  const prompt = useGameStore((s) => s.prompt);
   const boot = useGameStore((s) => s.boot);
   const startNewGame = useGameStore((s) => s.startNewGame);
+
+  useKeyboard();
 
   useEffect(() => {
     void boot();
@@ -90,13 +91,8 @@ export default function App() {
   return (
     <Frame>
       <Hud state={state} />
-      <FieldBand
-        state={state}
-        ledger={ledger}
-        persisted={persisted}
-        migratedFrom={migratedFrom}
-      />
-      <ControlsBand />
+      <FieldBand prompt={prompt} />
+      <ControlsBand actionActive={prompt !== null} />
       {error !== null && (
         <p className="bg-blood px-2 py-1 text-[11px] text-paper">{error}</p>
       )}

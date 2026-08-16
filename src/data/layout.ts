@@ -33,5 +33,16 @@ export const TILE = {
 /** 터치 타깃 최소 44dp */
 export const TOUCH_MIN = 44;
 
+/** D패드 버튼은 46dp 정사각 (§5 조작) */
+export const DPAD_BUTTON = 46;
+
 /** 한 칸 이동에 걸리는 시간(ms). §5 */
 export const STEP_MS = 140;
+
+/**
+ * 방향만 바꾼 뒤 걷기 시작할 때까지 두는 틈(ms).
+ *
+ * 0으로 두면 방향키를 누르고 있을 때 전환이 한 프레임에 지나가 버려서
+ * "방향만 바뀌었다"가 눈에 안 보인다. 툭 눌러 돌아보는 맛이 여기서 나온다.
+ */
+export const TURN_HOLD_MS = 70;
