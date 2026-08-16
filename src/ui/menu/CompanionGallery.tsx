@@ -13,6 +13,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { getArchetype } from '@/data/archetypes';
 import { ACCEPT_ATTR, AFTER_UPLOAD_NOTE, SLOT_COUNT, SLOT_LABEL } from '@/data/images';
 import { getStorage } from '@/storage';
+import { stageFor } from '@/systems/relationships';
 
 /** 저장된 Blob 을 화면에 걸 주소로. 떠날 때 반드시 되돌린다 */
 function useBlobUrl(key: string | null): string | null {
@@ -101,14 +102,30 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
 
 function CompanionCard({ companion }: { companion: CompanionRecord }) {
   const archetype = getArchetype(companion.archetypeId);
-  const label = companion.name !== '' ? companion.name : (archetype?.label ?? companion.archetypeId);
+  const rename = useGameStore((s) => s.renameCompanion);
+  const [draft, setDraft] = useState(companion.name);
+
+  const stage = stageFor(companion.affinity);
+  const track =
+    companion.track === 'romance' ? '연심' : companion.track === 'bond' ? '우애' : null;
 
   return (
     <section className="border-t border-stoneDark/30 pt-2">
-      <div className="flex items-baseline justify-between">
-        <h3 className="text-[13px] font-medium">{label}</h3>
-        <span className="text-[11px] text-inkSoft">
-          {archetype?.label} · 호감 {companion.affinity}
+      <div className="flex items-baseline justify-between gap-2">
+        {/* 이름은 플레이어가 붙인다 (§7.1) */}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft.trim() !== companion.name) rename(companion.id, draft);
+          }}
+          placeholder={archetype?.label ?? '이름'}
+          maxLength={12}
+          className="min-w-0 flex-1 border-b border-stoneDark/40 bg-transparent text-[13px] font-medium text-ink outline-none placeholder:text-inkSoft/70"
+        />
+        <span className="shrink-0 text-[11px] text-inkSoft">
+          {archetype?.label} · {stage.name} {companion.affinity}
+          {track !== null ? ` · ${track}` : ''}
         </span>
       </div>
 

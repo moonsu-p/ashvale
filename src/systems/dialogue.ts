@@ -144,25 +144,139 @@ export function buildEventScript(
   };
 }
 
-/** 의뢰인과의 대화. 선택지 없이 인사와 용건만 (§7.6) */
+/**
+ * 고백 (§7.4).
+ *
+ * **인물이 한다.** 플레이어가 고백하는 선택지는 만들지 않는다.
+ * 고를 수 있는 건 답 세 가지뿐이다 — 수락 / 보류 / 거절.
+ *
+ * 콘텐츠에 고백 전용 대사가 없어 벗(60) 승급 대사를 쓴다.
+ * 전용 대사가 생기면 그쪽으로 바꾼다 — 여기서 지어내지 않는다.
+ */
+export function buildConfessionScript(
+  companion: CompanionRecord,
+  req: DialogueRequest,
+): DialogueScript | null {
+  const voice = COMPANION_VOICES[companion.archetypeId];
+  if (voice === undefined) return null;
+
+  const tone = toneFor(companion);
+  const name = companion.name !== '' ? companion.name : voice.label;
+  const ctx: DialogueContext = {
+    townName: req.townName,
+    characterName: name,
+    address: voice.address[tone],
+  };
+
+  const answers: { id: 'accept' | 'hold' | 'decline'; text: string }[] = [
+    { id: 'accept', text: '받아들인다' },
+    { id: 'hold', text: '지금은 답하지 않는다' },
+    { id: 'decline', text: '그 마음은 받지 않는다' },
+  ];
+
+  return {
+    speakerName: name,
+    portrait: {
+      speaker: { kind: 'companion', id: companion.archetypeId },
+      // 고백은 사건 삽화 자리다. 없으면 조용히 내려간다 (§8.2)
+      wantSlot: 3,
+      label: voice.label,
+    },
+    lines: [fillTokens(voice.promote.t60, ctx)],
+    choices: answers.map((a) => ({
+      id: `confess:${a.id}`,
+      text: a.text,
+      reply: fillTokens(
+        a.id === 'accept'
+          ? voice.promote.t80
+          : (talkLine(companion.archetypeId, tone, 1) ?? ''),
+        ctx,
+      ),
+      effect: { companionId: companion.id, confess: a.id },
+    })),
+  };
+}
+
+/**
+ * 의뢰인과의 대화 (§7.6).
+ *
+ * 의뢰인은 실내에 상주한다 — **찾아가야 만난다.** 관계 대상과 반대다.
+ * 퀘스트는 동시 하나, 기한 없음, 실패 없음. 완료 보고도 여기서 한다.
+ */
+export interface PatronContext {
+  /** 신뢰 단계에 따라 인사가 갈린다 */
+  trust: number;
+  /** 지금 내줄 수 있는 의뢰 */
+  offer?: { id: string; name: string } | undefined;
+  /** 이 의뢰인에게 보고할 수 있는, 조건을 채운 의뢰 */
+  completed?: { id: string; name: string } | undefined;
+  /** 진행 중이라 아직 보고할 수 없는 의뢰 */
+  inProgress?: boolean;
+}
+
 export function buildPatronScript(
   patronId: string,
   req: DialogueRequest,
+  patron?: PatronContext,
 ): DialogueScript | null {
   const voice = PATRON_VOICES[patronId];
   if (voice === undefined) return null;
 
-  const ctx: DialogueContext = {
-    townName: req.townName,
-    characterName: voice.name,
-    address: '',
-  };
+  const ctx: DialogueContext = { townName: req.townName, characterName: voice.name, address: '' };
+  const trust = patron?.trust ?? 0;
+  const greet =
+    trust >= 40 ? voice.greet.oldFriend : trust >= 20 ? voice.greet.client : voice.greet.acquaintance;
 
-  return {
-    speakerName: voice.name,
-    portrait: { speaker: { kind: 'patron', id: patronId }, wantSlot: 0, label: voice.role },
-    lines: [fillTokens(voice.greet.acquaintance, ctx), fillTokens(voice.questOffer, ctx)],
+  const portrait = {
+    speaker: { kind: 'patron' as const, id: patronId },
+    wantSlot: 0,
+    label: voice.role,
   };
+  const base = { speakerName: voice.name, portrait };
+
+  // 조건을 채웠으면 보고를 받는다
+  if (patron?.completed !== undefined) {
+    return {
+      ...base,
+      lines: [fillTokens(greet, ctx), fillTokens(voice.questComplete, ctx)],
+      choices: [
+        {
+          id: `quest:report:${patron.completed.id}`,
+          text: '보고한다',
+          reply: '',
+          effect: { questReport: patron.completed.id },
+        },
+      ],
+    };
+  }
+
+  // 진행 중이면 재촉하지 않고 상황만 말한다
+  if (patron?.inProgress === true) {
+    return { ...base, lines: [fillTokens(greet, ctx), fillTokens(voice.questProgress, ctx)] };
+  }
+
+  // 내줄 의뢰가 있으면 받을지 고른다
+  if (patron?.offer !== undefined) {
+    return {
+      ...base,
+      lines: [fillTokens(greet, ctx), fillTokens(voice.questOffer, ctx)],
+      choices: [
+        {
+          id: `quest:take:${patron.offer.id}`,
+          text: '맡는다',
+          reply: '',
+          effect: { questAccept: patron.offer.id, patronId },
+        },
+        {
+          id: 'quest:pass',
+          text: '나중에',
+          reply: fillTokens(voice.questDecline, ctx),
+        },
+      ],
+    };
+  }
+
+  return { ...base, lines: [fillTokens(greet, ctx)] };
 }
 
 export function buildScript(speaker: SpeakerRef, req: DialogueRequest): DialogueScript | null {

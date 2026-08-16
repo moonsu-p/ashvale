@@ -10,6 +10,7 @@ import type { CompanionRecord, GameState } from '@/types/game';
 import type { AffinityTier } from '@/data/content/companion-dialogue';
 import { DIALOGUE_EVENTS } from '@/data/content/dialogue-events';
 import { getArchetype } from '@/data/archetypes';
+import { shouldConfess } from './confession';
 import {
   AFFINITY_MAX,
   AFFINITY_MIN,
@@ -68,11 +69,14 @@ export function pendingTier(companion: CompanionRecord): EventTier | null {
   return null;
 }
 
-/** 다가올 준비가 된 인물인가. 부상 중이면 오지 않는다 (§11 동행) */
+/**
+ * 다가올 준비가 된 인물인가. 부상 중이면 오지 않는다 (§11 동행).
+ * 고백도 다가옴으로 온다 (§7.4) — 사건이 없어도 고백할 때가 되면 온다.
+ */
 export function readyToApproach(companion: CompanionRecord, turn: number): boolean {
   if (companion.departedTurn !== null) return false;
   if (companion.injuredUntilTurn > turn) return false;
-  return pendingTier(companion) !== null;
+  return pendingTier(companion) !== null || shouldConfess(companion, turn);
 }
 
 /**

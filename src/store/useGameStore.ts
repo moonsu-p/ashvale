@@ -16,7 +16,7 @@ import { appendEntries, makeEntry } from '@/systems/chronicle';
 import { createRng } from '@/systems/rng';
 import { getBuilding } from '@/data/buildings';
 import { CHRONICLE_TEXT } from '@/data/chronicle';
-import { DOWNED, getRegion, regionIdFromMap, regionMapId } from '@/data/regions';
+import { DOWNED, getRegion, regionIdFromMap, regionMapId, regionName } from '@/data/regions';
 import { REGION_ENTRY } from '@/data/maps/region';
 import { REGION_TEXT } from '@/data/content/region-text';
 import { START_HERO_TILE } from '@/data/start';
@@ -34,7 +34,27 @@ import {
   TRUST_MAX,
 } from '@/data/relationships';
 import { shiftFaction } from '@/systems/factions';
-import { buildEventScript } from '@/systems/dialogue';
+import { buildConfessionScript, buildEventScript } from '@/systems/dialogue';
+import { answerConfession, shouldConfess } from '@/systems/confession';
+import { addCompanion } from '@/systems/roster';
+import { getQuest } from '@/data/quests';
+import {
+  buyCost,
+  getGift,
+  giftAffinity,
+  giftReaction,
+  giftReady,
+  sellValue,
+  weeklyLimit,
+} from '@/systems/market';
+import { josa } from '@/systems/korean';
+
+const RESOURCE_NAME: Record<ResourceId, string> = {
+  wood: '목재',
+  stone: '석재',
+  food: '식량',
+  gold: '금화',
+};
 import {
   displayName,
   isHomeRegion,
@@ -114,9 +134,18 @@ interface GameStore {
   /** 의뢰인과 대화하면 신뢰가 오른다. 주를 쓰지 않는다 (§7.6) */
   talkToPatron: (patronId: string) => void;
 
+  /** 이름은 플레이어가 붙인다 (§7.1) */
+  renameCompanion: (companionId: string, name: string) => void;
+  /** 이번 주에 쓴 거래액. 세이브에 담을 자리가 §4 에 없어 세션에만 둔다 */
+  tradedThisWeek: number;
+  sellResource: (resource: ResourceId, amount: number) => void;
+  buyResource: (resource: ResourceId, amount: number) => void;
+  /** 선물 — 취향이 맞으면 크게 오른다. 인물당 4주 쿨다운 (§7.3) */
+  giveGift: (companionId: string, giftId: string) => void;
+
   /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
-  menu: 'companions' | 'chronicle' | 'bundle' | null;
-  openMenu: (tab: 'companions' | 'chronicle' | 'bundle') => void;
+  menu: 'companions' | 'market' | 'chronicle' | 'bundle' | null;
+  openMenu: (tab: 'companions' | 'market' | 'chronicle' | 'bundle') => void;
   closeMenu: () => void;
 
   /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
@@ -190,6 +219,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   menu: null,
   approaching: null,
   approachIgnores: {},
+  tradedThisWeek: 0,
 
   async boot() {
     const storage = getStorage();
@@ -328,7 +358,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       if (effect.companionId !== undefined) {
         const companion = next.companions[effect.companionId];
-        if (companion !== undefined) {
+        if (companion !== undefined && effect.confess !== undefined) {
+          // 고백에 답한다 (§7.4). 보류가 이 장르의 핵심이다
+          const answered = answerConfession(companion, effect.confess, next.world.turn);
+          next = {
+            ...next,
+            companions: { ...next.companions, [answered.id]: answered },
+            counters: {
+              ...next.counters,
+              confessions:
+                effect.confess === 'accept'
+                  ? next.counters.confessions + 1
+                  : next.counters.confessions,
+            },
+          };
+          toast.push(
+            effect.confess === 'accept'
+              ? '연심'
+              : effect.confess === 'hold'
+                ? '보류'
+                : '우애로 굳음 · 호감 -10',
+          );
+        } else if (companion !== undefined) {
           let moved = companion;
           if (effect.affinity !== undefined && effect.affinity !== 0) {
             moved = withAffinity(moved, effect.affinity);
@@ -339,6 +390,78 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
           moved = { ...moved, lastApproachTurn: next.world.turn };
           next = { ...next, companions: { ...next.companions, [moved.id]: moved } };
+        }
+      }
+
+      // 의뢰를 맡는다 (§7.6) — 동시에 하나뿐이다
+      if (effect.questAccept !== undefined && effect.patronId !== undefined) {
+        const p = next.patrons[effect.patronId];
+        next = {
+          ...next,
+          patrons: {
+            ...next.patrons,
+            [effect.patronId]: {
+              id: effect.patronId,
+              met: true,
+              trust: p?.trust ?? 0,
+              questsCleared: p?.questsCleared ?? [],
+              activeQuestId: effect.questAccept,
+            },
+          },
+        };
+        toast.push('의뢰를 맡았다');
+      }
+
+      // 완료 보고 — 실패가 없으므로 여기까지 오면 반드시 성공이다
+      if (effect.questReport !== undefined) {
+        const quest = getQuest(effect.questReport);
+        const holder = Object.values(next.patrons).find(
+          (p) => p.activeQuestId === effect.questReport,
+        );
+        if (quest !== undefined && holder !== undefined) {
+          next = {
+            ...next,
+            patrons: {
+              ...next.patrons,
+              [holder.id]: {
+                ...holder,
+                trust: Math.min(TRUST_MAX, holder.trust + TRUST.questCleared),
+                questsCleared: [...holder.questsCleared, quest.id],
+                activeQuestId: null,
+              },
+            },
+          };
+          toast.push(`신뢰 +${TRUST.questCleared}`);
+
+          const reward = quest.reward;
+          if (reward.kind === 'resources') {
+            next = {
+              ...next,
+              resources: {
+                ...next.resources,
+                wood: next.resources.wood + (reward.wood ?? 0),
+                stone: next.resources.stone + (reward.stone ?? 0),
+                gold: next.resources.gold + (reward.gold ?? 0),
+              },
+            };
+          } else if (reward.kind === 'region') {
+            if (!next.world.unlockedRegions.includes(reward.regionId)) {
+              next = {
+                ...next,
+                world: {
+                  ...next.world,
+                  unlockedRegions: [...next.world.unlockedRegions, reward.regionId],
+                },
+              };
+              toast.push(`${regionName(reward.regionId)} 개방`);
+            }
+          } else {
+            const grown = addCompanion(next, 'quest');
+            if (grown !== null) {
+              next = grown.state;
+              toast.push(`${displayName(grown.companion)} 합류`);
+            }
+          }
         }
       }
 
@@ -387,16 +510,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const companion = state.companions[approaching];
     if (companion === undefined) return;
 
+    // 고백이 먼저다 (§7.4). 벗에 닿으면 인물이 그 말을 하러 온다
+    const req = { townName: state.town.name, characterName: companion.name };
     const tier = pendingTier(companion);
-    if (tier === null) {
-      set({ approaching: null });
-      return;
-    }
-
-    const script = buildEventScript(companion, tier, {
-      townName: state.town.name,
-      characterName: companion.name,
-    });
+    const script = shouldConfess(companion, state.world.turn)
+      ? buildConfessionScript(companion, req)
+      : tier === null
+        ? null
+        : buildEventScript(companion, tier, req);
     if (script === null) {
       set({ approaching: null });
       return;
@@ -467,6 +588,115 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       state: { ...state, patrons: { ...state.patrons, [patronId]: record } },
       toast: `신뢰 +${TRUST.talk}`,
+    });
+    void get().save('relationship');
+  },
+
+  renameCompanion(companionId, name) {
+    const { state } = get();
+    if (state === null) return;
+    const companion = state.companions[companionId];
+    if (companion === undefined) return;
+    set({
+      state: {
+        ...state,
+        companions: { ...state.companions, [companionId]: { ...companion, name: name.trim() } },
+      },
+    });
+    void get().save('relationship');
+  },
+
+  sellResource(resource, amount) {
+    const { state, tradedThisWeek } = get();
+    if (state === null || amount <= 0) return;
+    if (state.resources[resource] < amount) {
+      set({ error: `${josa(RESOURCE_NAME[resource], '이')} 모자랍니다.` });
+      return;
+    }
+    const gold = sellValue(state, resource, amount);
+    const limit = weeklyLimit(state);
+    if (tradedThisWeek + gold > limit) {
+      set({ error: `이번 주 거래 한도(${limit})를 넘습니다. 시장을 올리거나 다음 주에 하세요.` });
+      return;
+    }
+    set({
+      state: {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resource]: state.resources[resource] - amount,
+          gold: state.resources.gold + gold,
+        },
+      },
+      tradedThisWeek: tradedThisWeek + gold,
+      error: null,
+      toast: `금화 +${gold}`,
+    });
+    void get().save('manual');
+  },
+
+  buyResource(resource, amount) {
+    const { state, tradedThisWeek } = get();
+    if (state === null || amount <= 0) return;
+    const gold = buyCost(state, resource, amount);
+    if (state.resources.gold < gold) {
+      set({ error: `금화가 ${gold - state.resources.gold} 부족합니다. 자원을 팔거나 모으세요.` });
+      return;
+    }
+    const limit = weeklyLimit(state);
+    if (tradedThisWeek + gold > limit) {
+      set({ error: `이번 주 거래 한도(${limit})를 넘습니다. 시장을 올리거나 다음 주에 하세요.` });
+      return;
+    }
+    set({
+      state: {
+        ...state,
+        resources: {
+          ...state.resources,
+          [resource]: state.resources[resource] + amount,
+          gold: state.resources.gold - gold,
+        },
+      },
+      tradedThisWeek: tradedThisWeek + gold,
+      error: null,
+      toast: `${RESOURCE_NAME[resource]} +${amount}`,
+    });
+    void get().save('manual');
+  },
+
+  giveGift(companionId, giftId) {
+    const { state } = get();
+    if (state === null) return;
+    const companion = state.companions[companionId];
+    const gift = getGift(giftId);
+    if (companion === undefined || gift === undefined) return;
+
+    if (!giftReady(companion, state.world.turn)) {
+      set({ error: '얼마 전에도 받았습니다. 몇 주 뒤에 다시 건네세요.' });
+      return;
+    }
+    if (state.resources.gold < gift.gold) {
+      set({ error: `금화가 ${gift.gold - state.resources.gold} 부족합니다.` });
+      return;
+    }
+
+    const reaction = giftReaction(companion, gift.category);
+    const delta = giftAffinity(reaction);
+
+    set({
+      state: {
+        ...state,
+        resources: { ...state.resources, gold: state.resources.gold - gift.gold },
+        companions: {
+          ...state.companions,
+          [companionId]: {
+            ...withAffinity(companion, delta),
+            lastApproachTurn: state.world.turn,
+          },
+        },
+      },
+      error: null,
+      toast: `호감 ${delta > 0 ? '+' : ''}${delta}`,
     });
     void get().save('relationship');
   },
@@ -588,6 +818,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       regionSelect: false,
       clearedNodes: [],
       explore: null,
+      // 주가 넘어갔으니 거래 한도도 새로 찬다
+      tradedThisWeek: 0,
     });
     void get().save('map-change');
   },

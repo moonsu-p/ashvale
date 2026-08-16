@@ -38,6 +38,13 @@ export interface DialogueOption {
     factionShift?: [FactionId, number];
     /** 소화한 대화 사건 id. 같은 사건이 다시 오지 않게 표시한다 */
     clearedEvent?: string;
+    /** 고백에 대한 답 (§7.4). 플레이어가 고르는 건 이것뿐이다 */
+    confess?: 'accept' | 'hold' | 'decline';
+    /** 의뢰를 맡는다 (§7.6) */
+    questAccept?: string;
+    patronId?: string;
+    /** 의뢰 완료를 보고한다 */
+    questReport?: string;
   };
 }
 

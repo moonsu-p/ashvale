@@ -11,9 +11,25 @@ import Phaser from 'phaser';
 import { PALETTE } from '@/data/palette';
 import { CHAR_ROSTER } from '@/data/characters';
 import { useGameStore } from '@/store/useGameStore';
-import { buildScript } from '@/systems/dialogue';
+import type { GameState } from '@/types/game';
+import { buildPatronScript, buildScript, type PatronContext } from '@/systems/dialogue';
 import { toneFor } from '@/systems/relationships';
+import { activeQuest, isComplete, offerFor } from '@/systems/quests';
 import { FieldScene } from './FieldScene';
+
+/** 이 의뢰인이 지금 무슨 말을 할 상황인가 (§7.6) */
+function patronContext(state: GameState, patronId: string): PatronContext {
+  const record = state.patrons[patronId];
+  const active = activeQuest(state);
+  const mine = active !== null && active.patronId === patronId;
+
+  return {
+    trust: record?.trust ?? 0,
+    offer: offerFor(state, patronId) ?? undefined,
+    completed: mine && isComplete(state, active) ? active : undefined,
+    inProgress: mine && !isComplete(state, active),
+  };
+}
 
 /** 원형에 배정된 스프라이트를 찾는다 (§12 배역표) */
 function spriteForArchetype(archetypeId: string): string {
@@ -61,10 +77,20 @@ export function PhaserHost() {
             ? Object.values(state.companions).find((c) => c.archetypeId === object.voice?.id)
             : undefined;
 
-        const script = buildScript(object.voice, {
+        const req = {
           townName,
-          ...(companion !== undefined ? { characterName: companion.name, tone: toneFor(companion) } : {}),
-        });
+          ...(companion !== undefined
+            ? { characterName: companion.name, tone: toneFor(companion) }
+            : {}),
+        };
+
+        let script = null;
+        if (object.voice.kind === 'patron' && state !== null) {
+          script = buildPatronScript(object.voice.id, req, patronContext(state, object.voice.id));
+        } else {
+          script = buildScript(object.voice, req);
+        }
+
         if (script !== null) {
           store.openDialogue(script);
           // 의뢰인은 대화만으로 신뢰가 오른다. 주를 쓰지 않는다 (§7.6)
