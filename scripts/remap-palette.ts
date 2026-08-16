@@ -80,11 +80,23 @@ function nearestCached(r: number, g: number, b: number): RGB {
   return val;
 }
 
+/**
+ * SKIP 에 든 폴더는 통째로 건너뛴다.
+ *
+ * 이게 빠져 있으면 캐릭터 팩까지 리맵된다 — 16px 에 8색뿐이라 뭉개지고,
+ * 15종이 통일 팔레트를 공유한다는 최대 장점이 사라진다 (§12, docs/ASSETS.md).
+ */
 async function* walk(dir: string): AsyncGenerator<string> {
   for (const e of await readdir(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) yield* walk(p);
-    else if (extname(e.name).toLowerCase() === '.png') yield p;
+    if (e.isDirectory()) {
+      if (SKIP.includes(e.name)) {
+        console.log(`  건너뜀: ${join(dir, e.name)}`);
+        continue;
+      }
+      yield* walk(join(dir, e.name));
+    } else if (extname(e.name).toLowerCase() === '.png') {
+      yield join(dir, e.name);
+    }
   }
 }
 
