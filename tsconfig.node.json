@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "tailwind.config.ts", "scripts"],
+  // 팔레트 리맵은 sharp 를 쓴다. 원본 타일셋을 받아 파이프라인을 돌리는 단계에서
+  // sharp 를 설치하고 이 줄을 지운다. 그때까지 검사에서 뺀다
+  "exclude": ["scripts/remap-palette.ts"]
+}

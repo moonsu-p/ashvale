@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * 폰트는 자체 호스팅만 쓴다. CDN 참조는 비통신 요구사항을 깬다 (§14).
+ * 파일은 public/fonts/ 에 들어온다. 아직 없으면 system-ui 로 떨어지고,
+ * 그 상태로도 게임은 정상 작동한다.
+ *
+ * 경로가 '/fonts/' 가 아니라 '../fonts/' 인 이유:
+ *   base 가 './' 라서 절대 경로로 두면 하위 경로 배포(github.io/ashvale/)에서 404가 난다.
+ *   빌드 결과 CSS 는 dist/assets/ 에, 폰트는 dist/fonts/ 에 놓이므로 한 단계 위가 맞다.
+ *   개발 서버에서도 /src/index.css 기준으로 /fonts/ 로 풀려서 같이 맞는다.
+ *   vite.config.ts 의 build.assetsDir 를 바꾸면 이 깊이도 함께 고쳐야 한다.
+ */
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/Pretendard-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/Pretendard-500.woff2') format('woff2');
+}
+
+/* 연대기·시대 전환 전용. 첫 진입 때까지 필요 없어서 지연 로딩한다 */
+@font-face {
+  font-family: 'Noto Serif KR';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/NotoSerifKR-400.woff2') format('woff2');
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: theme('colors.ink');
+    color: theme('colors.ink');
+    font-family: theme('fontFamily.sans');
+    /* 세로 앱이다. 당겨서 새로고침·고무줄 스크롤을 막는다 */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 필드와 조작부에서 글자가 잡히면 걷다가 선택 상자가 뜬다 */
+  #root {
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* 픽셀 아트를 흐리게 늘리지 않는다 */
+  canvas,
+  img {
+    image-rendering: pixelated;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
