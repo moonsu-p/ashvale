@@ -1,30 +1,15 @@
-# 의존성
 node_modules/
-
-# 빌드 산출물
 dist/
-dist-ssr/
 
-# 환경 변수
 .env
 .env.*
-!.env.example
 
-# 서명 키 (절대 커밋 금지)
 *.keystore
 *.jks
 
-# 로그·캐시
-*.log
+# OS 부스러기
 .DS_Store
-.vite/
+__MACOSX/
+Thumbs.db
 
-# 에디터
-.vscode/*
-!.vscode/extensions.json
-.idea/
-
-# raw-assets/ 는 제외하지 않는다 (원본 에셋은 저장소에 둔다)
-
-# public/assets/ 는 remap-palette·build-atlas 가 생성한다 (raw-assets 원본에서 파생)
-public/assets/
+# raw-assets/ 는 제외하지 않는다. 원본 에셋은 저장소에 함께 둔다.

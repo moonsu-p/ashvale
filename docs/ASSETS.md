@@ -8,14 +8,30 @@
 
 | 팩 | 용도 | 수량 | 라이선스 | 출처 |
 |---|---|---|---|---|
-| **Tiny Town** | 지형, 건물, 주민 | 130 | CC0 1.0 | https://kenney.nl/assets/tiny-town |
+| **15 Top-Down Character Sprites** | **필드 캐릭터 15종 (4방향 걷기)** | 15 | CC0 1.0 | https://piano-no-renshu.itch.io/top-down-character-sprites |
+| **Tiny Town** | 지형, 건물 | 130 | CC0 1.0 | https://kenney.nl/assets/tiny-town |
 | **Tiny Dungeon** | 지하 대공동, 관문, 아이템 | 130+ | CC0 1.0 | https://kenney.nl/assets/tiny-dungeon |
-| **Tiny Creatures** (clintbellanger) | 위협 스프라이트 | 180 | CC0 1.0 | https://opengameart.org/content/tiny-creatures |
 | **Map Pack** (보조) | 길·다리·지형 보강 | 180 | CC0 1.0 | https://kenney.nl/assets/map-pack |
 
 - 전부 **16×16 원본**이며 §10.1의 ×2 스케일(32px 렌더) 규격과 맞는다
-- Tiny Creatures는 Tiny Town·Tiny Dungeon과 호환되는 스타일로 제작된 확장이며, Kenney의 허락 아래 만들어졌고 CC0다
 - Map Pack은 Tiny 계열과 결이 약간 다르다. **길·다리 등 형태가 단순한 타일만** 골라 쓰고, 반드시 팔레트 리맵을 거친다
+
+### 캐릭터 팩 — 실측 확정값
+
+| 항목 | 값 |
+|---|---|
+| 시트 | 64×96, 캐릭터당 PNG 1장 |
+| 프레임 | 16×24, **spacing 0**, margin 0 |
+| 배열 | 4열 × 4행 = 16프레임 |
+| 행 | 0=아래, 1=왼쪽, 2=위, 3=오른쪽 |
+| 걷기 | 프레임 0→1→2→3 순환. 1·3이 정지 자세 |
+| 색 | 8색 + 투명 |
+
+상수는 `src/data/characters.ts`에 있다.
+
+- **투명 픽셀이 마젠타(255,0,255) 알파 0으로 저장돼 있다.** 알파를 평탄화하는 변환을 거치면 분홍이 드러난다. 리사이즈·아틀라스에서 알파를 보존할 것
+- **캐릭터 팩은 팔레트 리맵 대상이 아니다.** 8색 16px이라 뭉갠다. `scripts/remap-palette.ts`가 `characters/`를 건너뛴다
+- 세계 팔레트를 캐릭터 쪽으로 밝게 조정했다. 최종 40색(세계 32 + 캐릭터 8)
 
 ### 구현 시 반드시 반영할 것
 
@@ -33,9 +49,9 @@ this.load.spritesheet('town', 'assets/tiny-town.png', {
 
 ```
 raw-assets/            ← 내려받은 원본. 읽기 전용으로 취급, 절대 수정하지 않는다
+  characters/          ← 캐릭터 15장. 리맵에서 제외됨
   kenney-tiny-town/
   kenney-tiny-dungeon/
-  tiny-creatures/
   kenney-map-pack/
         ↓  npx tsx scripts/remap-palette.ts   (32색 팔레트로 강제)
 public/assets/         ← 실제 사용본
@@ -43,13 +59,13 @@ public/assets/         ← 실제 사용본
 
 ## 일러스트 — AI 생성 18장
 
-| 항목 | 수량 | 규격 | 출처 표기 |
-|---|---|---|---|
-| 지역 배경 | 6 | 900×1200 세로 WebP | AI-generated |
-| 유물 아이콘 | 12 | 128×128 WebP | AI-generated |
+| 항목 | 수량 | 비고 |
+|---|---|---|
+| 지역 배경 | **0** | v2에서 지역은 걸어다니는 맵이다. 배경 일러스트가 필요 없다 |
+| 유물 아이콘 | 12 | Kenney Tiny Dungeon의 아이템 타일로 대체 가능. AI 생성은 선택 |
 
 - 프롬프트는 `illustration-prompts.md`. **고정 접두를 바꾸지 말고, 전량을 한 세션에서 생성한다**
-- **일러스트는 팔레트 리맵 대상이 아니다.** `public/assets/illustration/` 에 직접 넣는다
+- 일러스트를 쓴다면 `public/assets/illustration/`에 직접 넣는다. 리맵 대상이 아니다
 - 매니페스트에 `license: { source: '...', type: 'AI-generated' }` 로 표기한다
 
 ## 관계 대상 이미지 — 플레이어 업로드
