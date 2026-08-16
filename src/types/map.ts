@@ -32,7 +32,12 @@ export type Terrain =
   | 'rampart'
   | 'tower'
   /** 시대가 오르면 치워지는 잠긴 자리 (§6) */
-  | 'overgrown';
+  | 'overgrown'
+  // 지역 바닥 (§11). 지역마다 걸어다니는 땅의 결이 다르다
+  | 'sand'
+  | 'bog'
+  | 'scree'
+  | 'riftGround';
 
 /** 오브젝트 종류 (§6). 상호작용 문구가 여기서 갈린다 (§5) */
 export type MapObjectType = 'door' | 'npc' | 'node' | 'gateway';
@@ -50,6 +55,8 @@ export interface MapObject {
   voice?: { kind: 'companion' | 'patron'; id: string };
   /** 건물 부지면 그 건물 id. 여기 서서 A 를 누르면 건설·증축 패널이 열린다 (§10) */
   building?: string;
+  /** 지역 사건 노드의 종류 (§11). 밟으면 판정이 돈다 */
+  nodeKind?: 'loot' | 'event' | 'escort';
   /** 지나갈 수 없는가. 인물은 밀어서 지나갈 수 없다 (§5) */
   solid?: boolean;
 }

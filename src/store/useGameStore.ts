@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { Dir, GameState, Ledger } from '@/types/game';
+import type { Dir, GameState, Ledger, ResourceId } from '@/types/game';
 import type { DialogueScript, DialogueState } from '@/types/dialogue';
 import type { SaveReason } from '@/data/save';
 import { newGame, newLedger, seedOf } from '@/systems/newGame';
@@ -16,6 +16,24 @@ import { appendEntries, makeEntry } from '@/systems/chronicle';
 import { createRng } from '@/systems/rng';
 import { getBuilding } from '@/data/buildings';
 import { CHRONICLE_TEXT } from '@/data/chronicle';
+import { DOWNED, getRegion, regionIdFromMap, regionMapId } from '@/data/regions';
+import { REGION_ENTRY } from '@/data/maps/region';
+import { REGION_TEXT } from '@/data/content/region-text';
+import { START_HERO_TILE } from '@/data/start';
+import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
+import { gainXp, type LevelUp } from '@/systems/progression';
+import { getRelic, rollRelic } from '@/systems/relics';
+import { applyToken } from '@/systems/korean';
+
+/** 판정 연출이 보여 줄 것 */
+export interface ExploreView {
+  regionId: string;
+  outcome: ExploreOutcome;
+  narration: string;
+  levelUp: LevelUp | null;
+  relicName: string | null;
+  relicFound: string | null;
+}
 import { getStorage, loadGame, saveAll, StorageError } from '@/storage';
 
 export type BootStatus = 'booting' | 'empty' | 'ready' | 'failed';
@@ -49,6 +67,23 @@ interface GameStore {
   finishTyping: () => void;
   chooseDialogue: (optionId: string) => void;
   closeDialogue: () => void;
+
+  /** 지역 선택 화면이 열려 있는가 */
+  regionSelect: boolean;
+  /** 판정 연출 중인 결과. 닫아야 다시 걸을 수 있다 */
+  explore: ExploreView | null;
+  /** 이번 탐사에서 이미 밟은 노드. 세이브에 넣지 않는다 */
+  clearedNodes: string[];
+
+  openRegionSelect: () => void;
+  closeRegionSelect: () => void;
+  /** 지역으로 나간다. 이때 1주가 소모된다 (§11) */
+  enterRegion: (regionId: string) => void;
+  /** 마을로 돌아온다. 추가 시간 소모 없음 */
+  leaveRegion: () => void;
+  /** 노드를 밟았다 → 판정 */
+  stepNode: (nodeId: string) => void;
+  closeExplore: () => void;
 
   /** 열려 있는 건설·증축 패널의 건물 id */
   buildPanel: string | null;
@@ -90,6 +125,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   prompt: null,
   dialogue: null,
   buildPanel: null,
+  regionSelect: false,
+  explore: null,
+  clearedNodes: [],
 
   async boot() {
     const storage = getStorage();
@@ -223,6 +261,133 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeDialogue() {
     set({ dialogue: null });
+  },
+
+  openRegionSelect() {
+    set({ regionSelect: true });
+  },
+
+  closeRegionSelect() {
+    set({ regionSelect: false });
+  },
+
+  enterRegion(regionId) {
+    const { state } = get();
+    if (state === null) return;
+
+    // 1. 1주 소모 (§11). 마을 활동은 시간을 쓰지 않지만 나가는 것은 쓴다
+    const { state: afterWeek } = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+
+    // 2. 지역 맵 진입
+    set({
+      state: {
+        ...afterWeek,
+        world: {
+          ...afterWeek.world,
+          currentMap: regionMapId(regionId),
+          heroTile: { ...REGION_ENTRY },
+        },
+      },
+      regionSelect: false,
+      clearedNodes: [],
+      explore: null,
+    });
+    void get().save('map-change');
+  },
+
+  leaveRegion() {
+    const { state } = get();
+    if (state === null) return;
+    set({
+      state: {
+        ...state,
+        world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
+      },
+      clearedNodes: [],
+      explore: null,
+    });
+    void get().save('map-change');
+  },
+
+  stepNode(nodeId) {
+    const { state, clearedNodes } = get();
+    if (state === null || clearedNodes.includes(nodeId)) return;
+
+    const regionId = regionIdFromMap(state.world.currentMap);
+    if (regionId === null) return;
+    const region = getRegion(regionId);
+    if (region === undefined) return;
+
+    // 같은 노드를 두 번 밟아도 판정은 한 번이다
+    const rng = createRng(`${seedOf(state)}:${state.world.turn}:${nodeId}`);
+
+    const roll = rollExplore(state, region, rng);
+    const outcome = resolveExplore(state, region, roll, rng, (r) => rollRelic(state, r)?.id ?? null);
+
+    // 서술은 콘텐츠에서 가져온다. 새로 쓰지 않는다 (§11)
+    const pool = REGION_TEXT[regionId]?.lines[roll.grade] ?? [];
+    const narration = applyToken(rng.pick(pool) ?? '', '{거점}', state.town.name);
+
+    // 전리품·경험치·피해
+    let next: GameState = { ...state, resources: { ...state.resources } };
+    for (const [key, amount] of Object.entries(outcome.loot)) {
+      next.resources[key as ResourceId] += amount;
+    }
+    next.hero = { ...next.hero, hp: Math.max(0, next.hero.hp - outcome.hpLoss) };
+
+    const relic = outcome.relicId === null ? null : getRelic(outcome.relicId);
+    if (relic !== null && relic !== undefined) {
+      next.hero = { ...next.hero, relics: [...next.hero.relics, relic.id] };
+    }
+
+    const gained = gainXp(next, outcome.xp);
+    next = gained.state;
+    next = {
+      ...next,
+      counters: { ...next.counters, expeditions: next.counters.expeditions + 1 },
+    };
+
+    // 연대기에 남는다. 서술은 콘텐츠 문장 그대로
+    const lines = [narration];
+    if (relic !== null && relic !== undefined) lines.push(relic.found);
+    const entries = lines
+      .filter((t) => t !== '')
+      .map((text, i) => makeEntry(next.world.turn, next.chronicle.length + i, text));
+    next = { ...next, chronicle: appendEntries(next.chronicle, entries) };
+
+    set({
+      state: next,
+      clearedNodes: [...clearedNodes, nodeId],
+      explore: {
+        regionId,
+        outcome,
+        narration,
+        levelUp: gained.levelUp,
+        relicName: relic?.name ?? null,
+        relicFound: relic?.found ?? null,
+      },
+    });
+    void get().save('turn-end');
+  },
+
+  closeExplore() {
+    const { state } = get();
+    set({ explore: null });
+
+    // HP 가 0이면 강제 복귀 (§11). 죽지는 않는다
+    if (state !== null && state.hero.hp <= 0) {
+      const gold = Math.round(state.resources.gold * (1 - DOWNED.goldLossPercent));
+      set({
+        state: {
+          ...state,
+          hero: { ...state.hero, hp: DOWNED.hpOnReturn },
+          resources: { ...state.resources, gold },
+          world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
+        },
+        clearedNodes: [],
+      });
+      void get().save('map-change');
+    }
   },
 
   openBuildPanel(buildingId) {

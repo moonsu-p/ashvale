@@ -15,6 +15,8 @@
 import type { MapObject, TileMapData } from '@/types/map';
 import { inBounds, tileIndex } from '@/types/map';
 import { buildTownMap, townKey, type TownContext } from '@/data/maps/town';
+import { buildRegionMap } from '@/data/maps/region';
+import { regionIdFromMap } from '@/data/regions';
 
 /**
  * 맵을 정하는 데 필요한 것.
@@ -37,13 +39,15 @@ export function loadMap(ctx: MapContext): TileMapData {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
 
+  const regionId = regionIdFromMap(ctx.mapId);
+
   let map: TileMapData;
-  switch (ctx.mapId) {
-    case 'town':
-      map = buildTownMap(ctx);
-      break;
-    default:
-      throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
+  if (ctx.mapId === 'town') {
+    map = buildTownMap(ctx);
+  } else if (regionId !== null) {
+    map = buildRegionMap(regionId);
+  } else {
+    throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
   }
 
   cache.set(key, map);

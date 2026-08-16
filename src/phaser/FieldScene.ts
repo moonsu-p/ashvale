@@ -14,7 +14,7 @@ import { ASSETS, getAsset } from '@/data/assets';
 import { CHAR_TINT_SCALE, PALETTE, SEASON_TINT } from '@/data/palette';
 import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
-import { loadMap, mapKey, type MapContext } from '@/systems/map';
+import { loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
@@ -32,6 +32,8 @@ export interface FieldSceneCallbacks {
   onPrompt: (label: string | null) => void;
   /** A 를 눌렀다. 바라보는 자리에 아무것도 없으면 null */
   onAction: (object: MapObject | null) => void;
+  /** 한 칸 밟고 올라섰다. 지역 사건 노드는 밟는 것으로 발동한다 (§11) */
+  onEnterTile: (object: MapObject) => void;
 }
 
 /** 타일 좌표를 세계 좌표로. 스프라이트 기준점은 발밑(가운데 아래)이다 */
@@ -395,6 +397,12 @@ export class FieldScene extends Phaser.Scene {
 
   private finishStep(): void {
     this.walking = false;
+
+    // 밟고 올라선 칸에 사건 노드가 있으면 알린다 (§11 — 밟으면 판정)
+    if (this.map !== null) {
+      const here = objectAt(this.map, this.hero.x, this.hero.y);
+      if (here !== undefined && here.nodeKind !== undefined) this.cbs.onEnterTile(here);
+    }
 
     // 쌓아 둔 입력이나 여전히 눌린 방향이 있으면 멈추지 않고 이어 간다.
     // 여기서 한 번 세우면 모퉁이를 돌 때마다 걸린다

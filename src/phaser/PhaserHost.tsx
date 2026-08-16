@@ -36,13 +36,10 @@ export function PhaserHost() {
           return;
         }
 
-        /**
-         * 길목 — 여기서 지역으로 나가고 그때 1주가 소모된다 (§6).
-         * 지역 맵과 선택 화면은 아직 없다. 지금은 주만 넘긴다.
-         * **임시 연결이다.** 탐사가 붙으면 지역 선택으로 바뀐다.
-         */
+        // 길목 — 마을에서는 지역 선택으로, 지역에서는 마을 복귀로 (§6, §11)
         if (object.type === 'gateway') {
-          store.endWeek();
+          if (object.target === 'town') store.leaveRegion();
+          else store.openRegionSelect();
           return;
         }
 
@@ -50,6 +47,10 @@ export function PhaserHost() {
         const townName = store.state?.town.name ?? '';
         const script = buildScript(object.voice, { townName });
         if (script !== null) store.openDialogue(script);
+      },
+      onEnterTile: (object) => {
+        if (object.nodeKind === undefined) return;
+        useGameStore.getState().stepNode(object.id);
       },
     });
 
@@ -71,7 +72,8 @@ export function PhaserHost() {
     const unsubscribe = useGameStore.subscribe((s) => {
       if (s.state !== null) scene.syncFromState(s.state);
       // 대화나 패널이 열려 있는 동안 필드는 입력을 받지 않는다
-      const busy = s.dialogue !== null || s.buildPanel !== null;
+      const busy =
+        s.dialogue !== null || s.buildPanel !== null || s.regionSelect || s.explore !== null;
       if (busy !== wasTalking) {
         wasTalking = busy;
         scene.setPaused(busy);

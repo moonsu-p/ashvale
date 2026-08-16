@@ -8,6 +8,8 @@ import { PhaserHost } from '@/phaser/PhaserHost';
 import { InteractPrompt } from './InteractPrompt';
 import { DialogueLayer } from './dialogue/DialogueLayer';
 import { BuildPanel } from './BuildPanel';
+import { RegionSelect } from './RegionSelect';
+import { ExploreResult } from './ExploreResult';
 
 interface Props {
   prompt: string | null;
@@ -22,6 +24,8 @@ export function FieldBand({ prompt, talking }: Props) {
       {!talking && <InteractPrompt label={prompt} />}
       <DialogueLayer />
       <BuildPanel />
+      <RegionSelect />
+      <ExploreResult />
     </main>
   );
 }
