@@ -7,6 +7,7 @@
 import { PhaserHost } from '@/phaser/PhaserHost';
 import { InteractPrompt } from './InteractPrompt';
 import { DialogueLayer } from './dialogue/DialogueLayer';
+import { BuildPanel } from './BuildPanel';
 
 interface Props {
   prompt: string | null;
@@ -20,6 +21,7 @@ export function FieldBand({ prompt, talking }: Props) {
       {/* 대화 중에는 상호작용 프롬프트를 감춘다. 대사창이 그 자리를 쓴다 */}
       {!talking && <InteractPrompt label={prompt} />}
       <DialogueLayer />
+      <BuildPanel />
     </main>
   );
 }

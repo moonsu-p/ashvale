@@ -9,7 +9,13 @@ import { create } from 'zustand';
 import type { Dir, GameState, Ledger } from '@/types/game';
 import type { DialogueScript, DialogueState } from '@/types/dialogue';
 import type { SaveReason } from '@/data/save';
-import { newGame, newLedger } from '@/systems/newGame';
+import { newGame, newLedger, seedOf } from '@/systems/newGame';
+import { build, blockMessage } from '@/systems/construction';
+import { endWeek } from '@/systems/week';
+import { appendEntries, makeEntry } from '@/systems/chronicle';
+import { createRng } from '@/systems/rng';
+import { getBuilding } from '@/data/buildings';
+import { CHRONICLE_TEXT } from '@/data/chronicle';
 import { getStorage, loadGame, saveAll, StorageError } from '@/storage';
 
 export type BootStatus = 'booting' | 'empty' | 'ready' | 'failed';
@@ -44,6 +50,15 @@ interface GameStore {
   chooseDialogue: (optionId: string) => void;
   closeDialogue: () => void;
 
+  /** 열려 있는 건설·증축 패널의 건물 id */
+  buildPanel: string | null;
+  openBuildPanel: (buildingId: string) => void;
+  closeBuildPanel: () => void;
+  /** 한 단계 올린다. 시간은 흐르지 않는다 (§10) */
+  raiseBuilding: (buildingId: string) => void;
+  /** 주 종료. §3 의 8단계를 돈다 */
+  endWeek: () => void;
+
   setPrompt: (label: string | null) => void;
   /** 방향만 바꾼다 */
   faceHero: (dir: Dir) => void;
@@ -74,6 +89,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   persisted: false,
   prompt: null,
   dialogue: null,
+  buildPanel: null,
 
   async boot() {
     const storage = getStorage();
@@ -207,6 +223,47 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeDialogue() {
     set({ dialogue: null });
+  },
+
+  openBuildPanel(buildingId) {
+    set({ buildPanel: buildingId });
+  },
+
+  closeBuildPanel() {
+    set({ buildPanel: null });
+  },
+
+  raiseBuilding(buildingId) {
+    const { state } = get();
+    if (state === null) return;
+
+    const result = build(state, buildingId);
+    if (result.level === null) {
+      set({ error: blockMessage(result.blocked) });
+      return;
+    }
+
+    // 건설도 연대기에 남는다 (§4). 주 종료를 기다리지 않는다
+    const def = getBuilding(buildingId);
+    const entry = makeEntry(
+      result.state.world.turn,
+      result.state.chronicle.length,
+      CHRONICLE_TEXT.build(def?.name ?? buildingId, result.level),
+    );
+
+    set({
+      state: { ...result.state, chronicle: appendEntries(result.state.chronicle, [entry]) },
+      error: null,
+    });
+    void get().save('build');
+  },
+
+  endWeek() {
+    const { state } = get();
+    if (state === null) return;
+    const { state: next } = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+    set({ state: next });
+    void get().save('turn-end');
   },
 
   setPrompt(label) {

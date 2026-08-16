@@ -11,9 +11,10 @@ import type { Dir, GameState } from '@/types/game';
 import type { MapObject, TileMapData } from '@/types/map';
 import { CHAR_SHEET, IDLE_FRAME, WALK_FPS, WALK_ORDER, frameIndex } from '@/data/characters';
 import { ASSETS, getAsset } from '@/data/assets';
-import { PALETTE } from '@/data/palette';
+import { CHAR_TINT_SCALE, PALETTE, SEASON_TINT } from '@/data/palette';
 import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
-import { loadMap } from '@/systems/map';
+import { seasonOf } from '@/data/seasons';
+import { loadMap, mapKey, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
@@ -43,6 +44,11 @@ export class FieldScene extends Phaser.Scene {
   private readonly cbs: FieldSceneCallbacks;
 
   private map: TileMapData | null = null;
+  /** 지금 그려 둔 맵의 열쇠. 시대나 건물 레벨이 바뀌면 달라진다 */
+  private mapKeyDrawn: string | null = null;
+  /** 프롬프트가 건설·증축을 가르려면 레벨을 알아야 한다 */
+  private buildings: Record<string, number> = {};
+  private seasonOverlay: Phaser.GameObjects.Rectangle | null = null;
   private hero: HeroTile = { x: 0, y: 0, dir: 'down' };
   private heroSprite: Phaser.GameObjects.Sprite | null = null;
   private npcLayer: Phaser.GameObjects.Group | null = null;
@@ -108,11 +114,22 @@ export class FieldScene extends Phaser.Scene {
   }
 
   private applyState(state: GameState): void {
-    const mapId = state.world.currentMap;
+    this.buildings = state.town.buildings;
 
-    if (this.map === null || this.map.id !== mapId) {
-      this.buildMap(mapId);
+    const ctx: MapContext = {
+      mapId: state.world.currentMap,
+      eraIndex: state.world.eraIndex,
+      buildings: state.town.buildings,
+    };
+
+    // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다
+    const key = mapKey(ctx);
+    if (key !== this.mapKeyDrawn) {
+      this.mapKeyDrawn = key;
+      this.buildMap(ctx, key);
     }
+
+    this.applySeason(state.world.week);
 
     // 걷는 중에는 씬이 앞서 있다. 트윈과 싸우지 않게 둔다
     if (!this.walking) {
@@ -123,12 +140,12 @@ export class FieldScene extends Phaser.Scene {
     }
   }
 
-  private buildMap(mapId: string): void {
-    const map = loadMap(mapId);
+  private buildMap(ctx: MapContext, cacheKey: string): void {
+    const map = loadMap(ctx);
     this.map = map;
 
     // 타일마다 객체를 만들지 않는다. 한 장으로 구워서 이미지 하나로 붙인다
-    const key = `map:${map.id}`;
+    const key = `map:${cacheKey}`;
     if (this.textures.exists(key)) this.textures.remove(key);
 
     const tex = this.textures.createCanvas(key, map.width * S, map.height * S);
@@ -146,6 +163,43 @@ export class FieldScene extends Phaser.Scene {
 
     this.buildNpcs(map);
     this.buildHero();
+    this.buildSeasonOverlay(map);
+  }
+
+  /**
+   * 계절 틴트 — 곱셈 오버레이 (§12).
+   * 세계에는 그대로 걸고, 인물에는 CHAR_TINT_SCALE 만큼만 건다.
+   * 100%로 걸면 인물이 배경과 함께 물들어 안 읽힌다.
+   */
+  private buildSeasonOverlay(map: TileMapData): void {
+    this.seasonOverlay?.destroy();
+    const rect = this.add.rectangle(0, 0, map.width * S, map.height * S, 0xffffff, 0);
+    rect.setOrigin(0, 0);
+    rect.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    // 인물보다 위, UI 보다 아래
+    rect.setDepth(100000);
+    this.seasonOverlay = rect;
+  }
+
+  private applySeason(week: number): void {
+    const tint = SEASON_TINT[seasonOf(week)];
+    const color = Phaser.Display.Color.HexStringToColor(tint.color).color;
+
+    this.seasonOverlay?.setFillStyle(color, tint.alpha);
+
+    // 캐릭터는 절반 강도. 곱셈 틴트라서 흰색 쪽으로 섞어 옅게 만든다
+    const charTint = Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.ValueToColor(0xffffff),
+      Phaser.Display.Color.ValueToColor(color),
+      100,
+      Math.round(tint.alpha * CHAR_TINT_SCALE * 100),
+    );
+    const packed = Phaser.Display.Color.GetColor(charTint.r, charTint.g, charTint.b);
+
+    this.heroSprite?.setTint(packed);
+    this.npcLayer?.getChildren().forEach((child) => {
+      (child as Phaser.GameObjects.Sprite).setTint(packed);
+    });
   }
 
   /** 시트가 실제로 실렸는지. 실패했으면 플레이스홀더 텍스처를 만들어 준다 */
@@ -263,7 +317,7 @@ export class FieldScene extends Phaser.Scene {
 
     if (input.actionCount !== this.lastActionCount) {
       this.lastActionCount = input.actionCount;
-      const it = interactionAt(this.map, this.hero);
+      const it = interactionAt(this.map, this.hero, this.buildings);
       this.cbs.onAction(it?.object ?? null);
     }
 
@@ -357,7 +411,7 @@ export class FieldScene extends Phaser.Scene {
 
   private refreshPrompt(): void {
     if (this.map === null) return;
-    const it = interactionAt(this.map, this.hero);
+    const it = interactionAt(this.map, this.hero, this.buildings);
     const label = it === null ? null : it.label;
     if (label !== this.lastPrompt) {
       this.lastPrompt = label;

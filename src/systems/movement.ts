@@ -74,22 +74,38 @@ export interface Interaction {
   label: string;
 }
 
+/** 건물 부지면 문구가 갈린다 — 아직 없으면 건설, 있으면 증축 (§10) */
+function labelFor(object: MapObject, buildings?: Record<string, number>): string {
+  if (object.building !== undefined) {
+    const level = buildings?.[object.building] ?? 0;
+    return level === 0 ? '건설' : '증축';
+  }
+  return PROMPT[object.type];
+}
+
 /**
  * 지금 A 를 누르면 무엇이 되는가.
  *
  * 바라보는 칸을 먼저 본다 (§5). 거기 아무것도 없으면 **밟고 선 칸**의
- * 문·길목을 본다 (§6 — 문 타일을 밟고 A). 둘 다 없으면 null.
+ * 문·길목·건물 부지를 본다 (§6 — 문 타일을 밟고 A). 둘 다 없으면 null.
  */
-export function interactionAt(map: TileMapData, hero: HeroTile): Interaction | null {
+export function interactionAt(
+  map: TileMapData,
+  hero: HeroTile,
+  buildings?: Record<string, number>,
+): Interaction | null {
   const front = facingTile(hero);
   const faced = objectAt(map, front.x, front.y);
   if (faced !== undefined) {
-    return { object: faced, label: PROMPT[faced.type] };
+    return { object: faced, label: labelFor(faced, buildings) };
   }
 
   const under = objectAt(map, hero.x, hero.y);
-  if (under !== undefined && (under.type === 'door' || under.type === 'gateway')) {
-    return { object: under, label: PROMPT[under.type] };
+  if (
+    under !== undefined &&
+    (under.type === 'door' || under.type === 'gateway' || under.building !== undefined)
+  ) {
+    return { object: under, label: labelFor(under, buildings) };
   }
 
   return null;

@@ -27,8 +27,26 @@ export function PhaserHost() {
       onFace: (dir) => useGameStore.getState().faceHero(dir),
       onPrompt: (label) => useGameStore.getState().setPrompt(label),
       onAction: (object) => {
-        if (object === null || object.voice === undefined) return;
+        if (object === null) return;
         const store = useGameStore.getState();
+
+        // 건물 부지 — 건설·증축 패널 (§10)
+        if (object.building !== undefined) {
+          store.openBuildPanel(object.building);
+          return;
+        }
+
+        /**
+         * 길목 — 여기서 지역으로 나가고 그때 1주가 소모된다 (§6).
+         * 지역 맵과 선택 화면은 아직 없다. 지금은 주만 넘긴다.
+         * **임시 연결이다.** 탐사가 붙으면 지역 선택으로 바뀐다.
+         */
+        if (object.type === 'gateway') {
+          store.endWeek();
+          return;
+        }
+
+        if (object.voice === undefined) return;
         const townName = store.state?.town.name ?? '';
         const script = buildScript(object.voice, { townName });
         if (script !== null) store.openDialogue(script);
@@ -52,11 +70,11 @@ export function PhaserHost() {
     let wasTalking = false;
     const unsubscribe = useGameStore.subscribe((s) => {
       if (s.state !== null) scene.syncFromState(s.state);
-      // 대화가 열려 있는 동안 필드는 입력을 받지 않는다
-      const talking = s.dialogue !== null;
-      if (talking !== wasTalking) {
-        wasTalking = talking;
-        scene.setPaused(talking);
+      // 대화나 패널이 열려 있는 동안 필드는 입력을 받지 않는다
+      const busy = s.dialogue !== null || s.buildPanel !== null;
+      if (busy !== wasTalking) {
+        wasTalking = busy;
+        scene.setPaused(busy);
       }
     });
 

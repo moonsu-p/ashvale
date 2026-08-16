@@ -26,7 +26,13 @@ export type Terrain =
   | 'wall'
   | 'roof'
   | 'door'
-  | 'gateway';
+  | 'gateway'
+  // 성벽 링 — 레벨에 따라 셋 중 하나로 그린다 (§10)
+  | 'fence'
+  | 'rampart'
+  | 'tower'
+  /** 시대가 오르면 치워지는 잠긴 자리 (§6) */
+  | 'overgrown';
 
 /** 오브젝트 종류 (§6). 상호작용 문구가 여기서 갈린다 (§5) */
 export type MapObjectType = 'door' | 'npc' | 'node' | 'gateway';
@@ -42,6 +48,8 @@ export interface MapObject {
   sprite?: string;
   /** npc 일 때 대사를 끌어올 곳. 없으면 말을 걸어도 대화가 열리지 않는다 */
   voice?: { kind: 'companion' | 'patron'; id: string };
+  /** 건물 부지면 그 건물 id. 여기 서서 A 를 누르면 건설·증축 패널이 열린다 (§10) */
+  building?: string;
   /** 지나갈 수 없는가. 인물은 밀어서 지나갈 수 없다 (§5) */
   solid?: boolean;
 }

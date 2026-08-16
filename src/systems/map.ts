@@ -1,7 +1,7 @@
 /**
  * 맵 불러오기와 조회.
  *
- * **여기가 Tiled 교체 지점이다.** 지금은 코드로 만든 임시 마을을 돌려주지만,
+ * **여기가 Tiled 교체 지점이다.** 지금은 코드로 만든 마을을 돌려주지만,
  * Tiled JSON 이 생기면 `loadMap` 안에서 파싱한 결과를 돌려주면 된다.
  * 부르는 쪽(씬·규칙)은 `TileMapData` 만 알고 있으므로 손댈 필요가 없다.
  *
@@ -9,29 +9,44 @@
  *   ground 레이어    -> ground   (gid -> Terrain 대응표를 거친다)
  *   deco 레이어      -> deco
  *   collision 레이어 -> collision (칸이 채워져 있으면 true)
- *   objects 레이어   -> objects   (type / target 속성을 그대로 읽는다)
+ *   objects 레이어   -> objects   (type / target / building 속성을 그대로 읽는다)
  */
 
 import type { MapObject, TileMapData } from '@/types/map';
 import { inBounds, tileIndex } from '@/types/map';
-import { buildTownMap } from '@/data/maps/town';
+import { buildTownMap, townKey, type TownContext } from '@/data/maps/town';
+
+/**
+ * 맵을 정하는 데 필요한 것.
+ * 마을은 시대와 건물 레벨에 따라 모습이 달라진다 — 같은 'town' 이어도 그림이 다르다.
+ */
+export interface MapContext extends TownContext {
+  mapId: string;
+}
 
 const cache = new Map<string, TileMapData>();
 
-export function loadMap(id: string): TileMapData {
-  const hit = cache.get(id);
+/** 같은 열쇠면 같은 맵이다. 씬이 다시 그릴지 판단할 때도 쓴다 */
+export function mapKey(ctx: MapContext): string {
+  if (ctx.mapId === 'town') return townKey(ctx);
+  return ctx.mapId;
+}
+
+export function loadMap(ctx: MapContext): TileMapData {
+  const key = mapKey(ctx);
+  const hit = cache.get(key);
   if (hit !== undefined) return hit;
 
   let map: TileMapData;
-  switch (id) {
+  switch (ctx.mapId) {
     case 'town':
-      map = buildTownMap();
+      map = buildTownMap(ctx);
       break;
     default:
-      throw new Error(`맵 '${id}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
+      throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
   }
 
-  cache.set(id, map);
+  cache.set(key, map);
   return map;
 }
 

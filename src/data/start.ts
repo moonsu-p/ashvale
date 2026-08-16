@@ -32,11 +32,17 @@ export const START_STATS: Record<StatId, number> = {
   will: 1,
 };
 
+/**
+ * 개척지가 들고 온 첫 짐.
+ *
+ * 주 종료로만 자원이 들어오는데 주는 지역 탐사로만 넘어간다 (§3). 빈손으로 시작하면
+ * 첫 건물을 세울 방법이 없다. 탐사 판정이 붙으면 다시 맞춘다.
+ */
 export const START_RESOURCES: Record<ResourceId, number> = {
-  wood: 0,
-  stone: 0,
-  food: 0,
-  gold: 0,
+  wood: 40,
+  stone: 20,
+  food: 30,
+  gold: 10,
 };
 
 /** 세력 평판은 전부 중립에서 시작한다 (-100..100) */
@@ -63,7 +69,15 @@ export const START_WORLD = {
 export const START_UNLOCKED_REGIONS: string[] = ['whisper'];
 
 /**
- * 마을에서 처음 서 있는 칸. 실제 맵이 붙으면 맵의 입구 좌표로 옮긴다.
+ * 마을에서 처음 서 있는 칸 — 회관 앞 흙길 위.
+ * 맵은 36×30 한 벌이고 개척기에는 남서쪽 20×18 만 열려 있다 (§6).
  * 어디에 서 있는지는 게임 상태다 (§4).
  */
-export const START_HERO_TILE = { x: 10, y: 9, dir: 'down' } as const;
+export const START_HERO_TILE = { x: 10, y: 21, dir: 'up' } as const;
+
+/**
+ * 회관은 처음부터 서 있다 (§10 — 해금 0, Lv1).
+ * 이게 있어야 마을 지수가 1 이 되고 시대 계산이 돈다.
+ */
+export const START_BUILDINGS: Record<string, number> = { hall: 1 };
+

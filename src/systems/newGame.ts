@@ -8,6 +8,7 @@ import { SCHEMA_VERSION, LEDGER_VERSION } from '@/data/save';
 import {
   DEFAULT_TOWN_NAME,
   DEFAULT_HERO_NAME,
+  START_BUILDINGS,
   START_HERO,
   START_STATS,
   START_RESOURCES,
@@ -44,7 +45,7 @@ export function newGame(input: NewGameInput): GameState {
 
     town: {
       name: input.townName ?? DEFAULT_TOWN_NAME,
-      buildings: {},
+      buildings: { ...START_BUILDINGS },
     },
 
     resources: { ...START_RESOURCES },

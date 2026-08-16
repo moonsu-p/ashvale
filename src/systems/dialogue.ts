@@ -11,6 +11,7 @@ import { COMPANION_VOICES, type AffinityTier } from '@/data/content/companion-di
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 import { DIALOGUE_EVENTS } from '@/data/content/dialogue-events';
 import { MAX_CHOICES } from '@/data/dialogue';
+import { applyToken } from './korean';
 
 export interface DialogueContext {
   /** {거점} */
@@ -28,73 +29,7 @@ export interface DialogueRequest {
   characterName?: string;
 }
 
-/**
- * 받침이 있는가. 한글 음절이 아니면 없는 것으로 친다.
- * 한글 음절은 0xAC00 부터 28개 종성 단위로 배열된다.
- */
-function hasFinal(word: string): boolean {
-  const ch = word.at(-1);
-  if (ch === undefined) return false;
-  const code = ch.charCodeAt(0);
-  if (code < 0xac00 || code > 0xd7a3) return false;
-  return (code - 0xac00) % 28 !== 0;
-}
-
-/** 종성이 ㄹ 인가. '으로/로' 가 이것만 따로 본다 */
-function endsWithRieul(word: string): boolean {
-  const ch = word.at(-1);
-  if (ch === undefined) return false;
-  const code = ch.charCodeAt(0);
-  if (code < 0xac00 || code > 0xd7a3) return false;
-  return (code - 0xac00) % 28 === 8;
-}
-
-/** 앞말에 맞는 조사 형태를 고른다 */
-function agree(value: string, particle: string): string {
-  const final = hasFinal(value);
-  switch (particle) {
-    case '이':
-    case '가':
-      return final ? '이' : '가';
-    case '은':
-    case '는':
-      return final ? '은' : '는';
-    case '을':
-    case '를':
-      return final ? '을' : '를';
-    case '과':
-    case '와':
-      return final ? '과' : '와';
-    case '아':
-    case '야':
-      return final ? '아' : '야';
-    case '으로':
-    case '로':
-      return final && !endsWithRieul(value) ? '으로' : '로';
-    default:
-      return particle;
-  }
-}
-
-const PARTICLE = '으로|로|이|가|은|는|을|를|과|와|아|야';
-/** 조사 뒤가 낱말 경계여야 한다. '{이름}이랑' 의 '이' 를 조사로 오해하지 않으려고 */
-const BOUNDARY = '[\\s,.!?"\'”’…」』)\\]]|$';
-
-/**
- * 토큰 하나를 채우면서 뒤따르는 조사를 앞말에 맞춘다.
- *
- * 이름과 거점 이름은 플레이어가 붙인다. 콘텐츠는 `{이름}이` 처럼 받침이 있는
- * 이름을 전제로 쓰여 있어서, 그대로 끼우면 '기사이 혼자' 같은 문장이 나온다.
- */
-function applyToken(text: string, token: string, value: string): string {
-  const esc = token.replace(/[{}]/g, '\\$&');
-  const withParticle = new RegExp(`${esc}(${PARTICLE})(?=${BOUNDARY})`, 'g');
-  return text
-    .replace(withParticle, (_match, particle: string) => value + agree(value, particle))
-    .replaceAll(token, value);
-}
-
-/** 콘텐츠의 치환 토큰을 채운다 */
+/** 콘텐츠의 치환 토큰을 채운다. 뒤따르는 조사는 앞말에 맞춰진다 */
 export function fillTokens(text: string, ctx: DialogueContext): string {
   let out = applyToken(text, '{거점}', ctx.townName);
   out = applyToken(out, '{이름}', ctx.characterName);

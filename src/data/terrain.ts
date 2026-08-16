@@ -27,4 +27,12 @@ export const TERRAIN_LOOK: Record<Terrain, TerrainLook> = {
   roof: { base: 'roofRed', detail: 'roofBlue' },
   door: { base: 'wood', detail: 'woodLight' },
   gateway: { base: 'dirtLight', detail: 'dirt' },
+
+  // 성벽 링 (§10) — 1–3 나무 울타리, 4–9 석벽, 10+ 탑
+  fence: { base: 'wood', detail: 'woodLight' },
+  rampart: { base: 'stone', detail: 'stoneLight' },
+  tower: { base: 'stoneDark', detail: 'metal' },
+
+  // 아직 열리지 않은 자리. 시대가 오르면 치운다
+  overgrown: { base: 'grassDark', detail: 'grass' },
 };
