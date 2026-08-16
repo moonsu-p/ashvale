@@ -5,10 +5,12 @@
 
 import type { GameState, Ledger } from '@/types/game';
 import { SCHEMA_VERSION, LEDGER_VERSION } from '@/data/save';
+import { getArchetype } from '@/data/archetypes';
 import {
   DEFAULT_TOWN_NAME,
   DEFAULT_HERO_NAME,
   START_BUILDINGS,
+  START_COMPANIONS,
   START_HERO,
   START_STATS,
   START_RESOURCES,
@@ -61,7 +63,30 @@ export function newGame(input: NewGameInput): GameState {
       heroTile: { ...START_HERO_TILE },
     },
 
-    companions: {},
+    companions: Object.fromEntries(
+      START_COMPANIONS.map((seed) => [
+        seed.id,
+        {
+          id: seed.id,
+          archetypeId: seed.archetypeId,
+          // 이름은 플레이어가 붙인다 (§7.1)
+          name: '',
+          affinity: 0,
+          track: null,
+          confessed: 'none',
+          clearedEvents: [],
+          lastApproachTurn: 0,
+          injuredUntilTurn: 0,
+          images: {},
+          // 기본 초상 자리만 열려 있다. 나머지는 호감으로 열린다 (§8.2)
+          unlockedSlots: [0],
+          homeRegion: getArchetype(seed.archetypeId)?.homeRegion ?? '',
+          origin: 'preset' as const,
+          joinedTurn: 0,
+          departedTurn: null,
+        },
+      ]),
+    ),
     patrons: {},
     factions: { ...START_FACTIONS },
 

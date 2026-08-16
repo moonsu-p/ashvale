@@ -16,11 +16,16 @@ const RESOURCE_LABEL: Record<ResourceId, string> = {
 
 const ORDER: ResourceId[] = ['wood', 'stone', 'food', 'gold'];
 
-export function Hud({ state }: { state: GameState }) {
+export function Hud({ state, onOpenMenu }: { state: GameState; onOpenMenu: () => void }) {
   return (
     // 상단 안전 영역만큼 내려 앉힌다. 플립4는 펀치홀이 이 자리에 있다
     <header className="shrink-0 border-b border-stoneDark bg-slate px-2 pt-safe-t text-[11px] text-paper">
-      <div className="flex h-hud items-center gap-2">
+      {/* HUD 를 누르면 메뉴가 열린다 (§5) */}
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        className="flex h-hud w-full items-center gap-2 text-left"
+      >
         <span className="font-medium">{state.town.name}</span>
 
         <span className="text-paperDim">
@@ -36,7 +41,7 @@ export function Hud({ state }: { state: GameState }) {
             </span>
           ))}
         </div>
-      </div>
+      </button>
     </header>
   );
 }

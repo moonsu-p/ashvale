@@ -73,7 +73,11 @@ export function PhaserHost() {
       if (s.state !== null) scene.syncFromState(s.state);
       // 대화나 패널이 열려 있는 동안 필드는 입력을 받지 않는다
       const busy =
-        s.dialogue !== null || s.buildPanel !== null || s.regionSelect || s.explore !== null;
+        s.dialogue !== null ||
+        s.buildPanel !== null ||
+        s.regionSelect ||
+        s.explore !== null ||
+        s.menu !== null;
       if (busy !== wasTalking) {
         wasTalking = busy;
         scene.setPaused(busy);

@@ -5,6 +5,8 @@ import { Hud } from '@/ui/Hud';
 import { FieldBand } from '@/ui/FieldBand';
 import { ControlsBand } from '@/ui/ControlsBand';
 import { useKeyboard } from '@/ui/useKeyboard';
+import { MenuOverlay } from '@/ui/menu/MenuOverlay';
+import { ImportButton } from '@/ui/ImportButton';
 
 /**
  * 세로 한 통. 폰에서는 화면을 꽉 채우고, 넓은 화면에서만 가운데로 모은다.
@@ -36,6 +38,7 @@ export default function App() {
   const prompt = useGameStore((s) => s.prompt);
   const talking = useGameStore((s) => s.dialogue !== null);
   const boot = useGameStore((s) => s.boot);
+  const openMenu = useGameStore((s) => s.openMenu);
   const startNewGame = useGameStore((s) => s.startNewGame);
 
   useKeyboard();
@@ -89,6 +92,8 @@ export default function App() {
         >
           새 게임
         </button>
+        {/* 새 기기·새 주소에서는 여기가 되돌릴 유일한 길이다 */}
+        <ImportButton />
         {error !== null && <p className="text-[11px] text-blood">{error}</p>}
       </Centered>
     );
@@ -96,9 +101,10 @@ export default function App() {
 
   return (
     <Frame>
-      <Hud state={state} />
+      <Hud state={state} onOpenMenu={() => openMenu('companions')} />
       <FieldBand prompt={prompt} talking={talking} />
       <ControlsBand actionActive={talking || prompt !== null} />
+      <MenuOverlay />
       {error !== null && (
         <p className="bg-blood px-2 py-1 text-[11px] text-paper">{error}</p>
       )}

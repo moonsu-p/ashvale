@@ -24,6 +24,12 @@ import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/expl
 import { gainXp, type LevelUp } from '@/systems/progression';
 import { getRelic, rollRelic } from '@/systems/relics';
 import { applyToken } from '@/systems/korean';
+import { encodeForSlot } from '@/systems/imagePipeline';
+import { imageKey } from '@/data/images';
+import {
+  exportBundle as buildBundle,
+  importBundle as restoreBundle,
+} from '@/storage/bundle';
 
 /** 판정 연출이 보여 줄 것 */
 export interface ExploreView {
@@ -67,6 +73,18 @@ interface GameStore {
   finishTyping: () => void;
   chooseDialogue: (optionId: string) => void;
   closeDialogue: () => void;
+
+  /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
+  menu: 'companions' | 'chronicle' | 'bundle' | null;
+  openMenu: (tab: 'companions' | 'chronicle' | 'bundle') => void;
+  closeMenu: () => void;
+
+  /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
+  putImage: (companionId: string, slot: number, file: File) => Promise<void>;
+  clearImage: (companionId: string, slot: number) => Promise<void>;
+  /** 꾸러미 내보내기. Blob 을 돌려주면 화면이 내려받기를 건다 */
+  exportBundle: () => Promise<Blob | null>;
+  importBundle: (file: Blob) => Promise<void>;
 
   /** 지역 선택 화면이 열려 있는가 */
   regionSelect: boolean;
@@ -128,6 +146,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   regionSelect: false,
   explore: null,
   clearedNodes: [],
+  menu: null,
 
   async boot() {
     const storage = getStorage();
@@ -261,6 +280,95 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeDialogue() {
     set({ dialogue: null });
+  },
+
+  openMenu(tab) {
+    set({ menu: tab });
+  },
+
+  closeMenu() {
+    set({ menu: null });
+  },
+
+  async putImage(companionId, slot, file) {
+    const { state } = get();
+    if (state === null) return;
+
+    try {
+      const encoded = await encodeForSlot(file, slot);
+      const key = imageKey(companionId, slot);
+      // 저장하는 건 다시 구운 바이트뿐이다. 원본을 가리키는 값은 남기지 않는다 (§9.1)
+      await getStorage().putImage(key, encoded.blob);
+
+      const companion = state.companions[companionId];
+      if (companion === undefined) return;
+
+      set({
+        state: {
+          ...state,
+          companions: {
+            ...state.companions,
+            [companionId]: { ...companion, images: { ...companion.images, [slot]: key } },
+          },
+        },
+        error: null,
+      });
+      void get().save('relationship');
+    } catch (err) {
+      set({ error: describe(err) });
+    }
+  },
+
+  async clearImage(companionId, slot) {
+    const { state } = get();
+    if (state === null) return;
+    const companion = state.companions[companionId];
+    if (companion === undefined) return;
+
+    try {
+      await getStorage().removeImage(imageKey(companionId, slot));
+    } catch {
+      // 지우기가 실패해도 참조는 끊는다. 남은 바이트는 다음 저장에서 덮인다
+    }
+
+    const images = { ...companion.images };
+    delete images[slot];
+    set({
+      state: {
+        ...state,
+        companions: { ...state.companions, [companionId]: { ...companion, images } },
+      },
+    });
+    void get().save('relationship');
+  },
+
+  async exportBundle() {
+    const { state } = get();
+    if (state === null) return null;
+    try {
+      return await buildBundle(getStorage(), state, new Date());
+    } catch (err) {
+      set({ error: describe(err) });
+      return null;
+    }
+  },
+
+  async importBundle(file) {
+    const outcome = await restoreBundle(getStorage(), file);
+    if (outcome.kind === 'failed') {
+      set({ error: outcome.message });
+      return;
+    }
+    set({
+      status: 'ready',
+      state: outcome.state,
+      ledger: outcome.ledger,
+      error: null,
+      menu: null,
+      clearedNodes: [],
+      explore: null,
+      dialogue: null,
+    });
   },
 
   openRegionSelect() {

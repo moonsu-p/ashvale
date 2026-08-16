@@ -81,3 +81,15 @@ export const START_HERO_TILE = { x: 10, y: 21, dir: 'up' } as const;
  */
 export const START_BUILDINGS: Record<string, number> = { hall: 1 };
 
+/**
+ * 처음부터 마을에 있는 관계 대상 (§4 origin: 'preset').
+ *
+ * **이름은 비워 둔다.** 이름은 플레이어가 붙인다 (§7.1). 대신 지어 넣지 않는다 —
+ * 이름이 없는 동안에는 원형 이름표로 보인다.
+ * 인물이 새로 들어오는 흐름(의뢰인 소개·떠돌이)은 관계 시스템의 몫이다.
+ */
+export const START_COMPANIONS: { id: string; archetypeId: string }[] = [
+  { id: 'c1', archetypeId: 'knight' },
+  { id: 'c2', archetypeId: 'hunter' },
+];
+
