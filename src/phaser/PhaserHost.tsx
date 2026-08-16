@@ -9,9 +9,19 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { PALETTE } from '@/data/palette';
+import { CHAR_ROSTER } from '@/data/characters';
 import { useGameStore } from '@/store/useGameStore';
 import { buildScript } from '@/systems/dialogue';
+import { toneFor } from '@/systems/relationships';
 import { FieldScene } from './FieldScene';
+
+/** 원형에 배정된 스프라이트를 찾는다 (§12 배역표) */
+function spriteForArchetype(archetypeId: string): string {
+  return (
+    CHAR_ROSTER.find((slot) => slot.role === 'companion' && slot.bind === archetypeId)?.spriteId ??
+    'char.comp.1'
+  );
+}
 
 export function PhaserHost() {
   const holder = useRef<HTMLDivElement>(null);
@@ -19,8 +29,6 @@ export function PhaserHost() {
   useEffect(() => {
     const parent = holder.current;
     if (parent === null) return;
-
-    const store = useGameStore.getState();
 
     const scene = new FieldScene({
       onStep: (to, dir) => useGameStore.getState().stepHero(to, dir),
@@ -44,14 +52,30 @@ export function PhaserHost() {
         }
 
         if (object.voice === undefined) return;
-        const townName = store.state?.town.name ?? '';
-        const script = buildScript(object.voice, { townName });
-        if (script !== null) store.openDialogue(script);
+        const state = store.state;
+        const townName = state?.town.name ?? '';
+
+        // 말투는 호감 단계를 따라간다 (§15). 명단에서 그 원형의 인물을 찾는다
+        const companion =
+          object.voice.kind === 'companion' && state !== null
+            ? Object.values(state.companions).find((c) => c.archetypeId === object.voice?.id)
+            : undefined;
+
+        const script = buildScript(object.voice, {
+          townName,
+          ...(companion !== undefined ? { characterName: companion.name, tone: toneFor(companion) } : {}),
+        });
+        if (script !== null) {
+          store.openDialogue(script);
+          // 의뢰인은 대화만으로 신뢰가 오른다. 주를 쓰지 않는다 (§7.6)
+          if (object.voice.kind === 'patron') store.talkToPatron(object.voice.id);
+        }
       },
       onEnterTile: (object) => {
         if (object.nodeKind === undefined) return;
         useGameStore.getState().stepNode(object.id);
       },
+      onApproachArrive: () => useGameStore.getState().approachArrived(),
     });
 
     const game = new Phaser.Game({
@@ -66,11 +90,29 @@ export function PhaserHost() {
       // 물리 엔진을 쓰지 않는다. 격자 이동이라 필요 없다
     });
 
-    // 첫 상태를 밀어 넣고, 이후 변화도 이 통로로만 보낸다
-    if (store.state !== null) scene.syncFromState(store.state);
     let wasTalking = false;
-    const unsubscribe = useGameStore.subscribe((s) => {
+    let lastApproach: string | null = null;
+    let lastMap: string | null = null;
+
+    const handle = (s: ReturnType<typeof useGameStore.getState>) => {
       if (s.state !== null) scene.syncFromState(s.state);
+
+      // 마을에 들어서면 대기 중인 인물이 걸어온다 (§7.3)
+      const map = s.state?.world.currentMap ?? null;
+      if (map !== lastMap) {
+        const leftTown = lastMap === 'town' && map !== 'town';
+        lastMap = map;
+        if (leftTown && useGameStore.getState().approaching !== null) {
+          useGameStore.getState().abandonApproach();
+        }
+        if (map === 'town') useGameStore.getState().beginApproach();
+      }
+
+      if (s.approaching !== lastApproach) {
+        lastApproach = s.approaching;
+        const companion = s.approaching === null ? undefined : s.state?.companions[s.approaching];
+        scene.setApproach(companion === undefined ? null : spriteForArchetype(companion.archetypeId));
+      }
       // 대화나 패널이 열려 있는 동안 필드는 입력을 받지 않는다
       const busy =
         s.dialogue !== null ||
@@ -82,7 +124,13 @@ export function PhaserHost() {
         wasTalking = busy;
         scene.setPaused(busy);
       }
-    });
+    };
+
+    // 구독을 **먼저** 걸고 첫 상태를 흘린다.
+    // 순서가 뒤집히면, 첫 호출이 일으킨 변화(다가옴 시작)를 받아 줄 사람이 없다.
+    // 그리고 subscribe 는 변화가 있을 때만 부르므로 첫 호출 자체도 반드시 필요하다
+    const unsubscribe = useGameStore.subscribe(handle);
+    handle(useGameStore.getState());
 
     const resize = () => {
       if (holder.current === null) return;

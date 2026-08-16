@@ -24,6 +24,24 @@ import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/expl
 import { gainXp, type LevelUp } from '@/systems/progression';
 import { getRelic, rollRelic } from '@/systems/relics';
 import { applyToken } from '@/systems/korean';
+import {
+  AFFINITY,
+  APPROACH_IGNORE_LIMIT,
+  ESCORT_INJURY,
+  ESCORT_MIN_AFFINITY,
+  FACTION_LABEL,
+  TRUST,
+  TRUST_MAX,
+} from '@/data/relationships';
+import { shiftFaction } from '@/systems/factions';
+import { buildEventScript } from '@/systems/dialogue';
+import {
+  displayName,
+  isHomeRegion,
+  nextApproach,
+  pendingTier,
+  withAffinity,
+} from '@/systems/relationships';
 import { encodeForSlot } from '@/systems/imagePipeline';
 import { imageKey } from '@/data/images';
 import {
@@ -58,6 +76,9 @@ interface GameStore {
   persisted: boolean;
   /** 하단 상호작용 문구. 씬이 올려 준다. 저장하지 않는다 */
   prompt: string | null;
+  /** 화면 위쪽에 잠깐 뜨는 결과 문구 (§8.3) — `호감 +8` */
+  toast: string | null;
+  clearToast: () => void;
 
   boot: () => Promise<void>;
   startNewGame: (opts?: { heroName?: string; townName?: string }) => Promise<void>;
@@ -73,6 +94,25 @@ interface GameStore {
   finishTyping: () => void;
   chooseDialogue: (optionId: string) => void;
   closeDialogue: () => void;
+
+  /** 지금 걸어오고 있는 인물 id (§7.3). 스프라이트가 도착하면 대화가 열린다 */
+  approaching: string | null;
+  /**
+   * 다가옴을 몇 번 무시했는지. 세이브에 담을 자리가 §4 에 없어 세션에만 둔다 —
+   * 새로고침하면 0 으로 돌아간다.
+   */
+  approachIgnores: Record<string, number>;
+  /** 마을에 들어섰다. 대기 중인 인물이 있으면 걸어오게 한다 */
+  beginApproach: () => void;
+  /** 스프라이트가 앞까지 왔다 → 대화 사건을 연다 */
+  approachArrived: () => void;
+  /** 마을을 떠났다. 다가오던 사람을 무시한 것으로 친다 */
+  abandonApproach: () => void;
+
+  /** 동행 — 주당 1명, 동료(40) 이상만 (§11) */
+  setEscort: (companionId: string | null) => void;
+  /** 의뢰인과 대화하면 신뢰가 오른다. 주를 쓰지 않는다 (§7.6) */
+  talkToPatron: (patronId: string) => void;
 
   /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
   menu: 'companions' | 'chronicle' | 'bundle' | null;
@@ -141,12 +181,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   migratedFrom: null,
   persisted: false,
   prompt: null,
+  toast: null,
   dialogue: null,
   buildPanel: null,
   regionSelect: false,
   explore: null,
   clearedNodes: [],
   menu: null,
+  approaching: null,
+  approachIgnores: {},
 
   async boot() {
     const storage = getStorage();
@@ -270,9 +313,54 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (d === null || d.phase !== 'choosing') return;
 
     const option = d.script.choices?.find((c) => c.id === optionId);
-    // 마무리 대사가 없으면 고르는 즉시 닫힌다
-    if (option === undefined || option.reply === '') {
+    if (option === undefined) {
       set({ dialogue: null });
+      return;
+    }
+
+    // 고른 것이 실제로 일어난다 (§8.4). 정답은 없다 —
+    // 호감이 적게 오르는 쪽은 세력 평판 같은 다른 것을 준다
+    const effect = option.effect;
+    const { state } = get();
+    if (effect !== undefined && state !== null) {
+      let next = state;
+      const toast: string[] = [];
+
+      if (effect.companionId !== undefined) {
+        const companion = next.companions[effect.companionId];
+        if (companion !== undefined) {
+          let moved = companion;
+          if (effect.affinity !== undefined && effect.affinity !== 0) {
+            moved = withAffinity(moved, effect.affinity);
+            toast.push(`호감 ${effect.affinity > 0 ? '+' : ''}${effect.affinity}`);
+          }
+          if (effect.clearedEvent !== undefined && !moved.clearedEvents.includes(effect.clearedEvent)) {
+            moved = { ...moved, clearedEvents: [...moved.clearedEvents, effect.clearedEvent] };
+          }
+          moved = { ...moved, lastApproachTurn: next.world.turn };
+          next = { ...next, companions: { ...next.companions, [moved.id]: moved } };
+        }
+      }
+
+      if (effect.factionShift !== undefined) {
+        const [faction, delta] = effect.factionShift;
+        next = { ...next, factions: shiftFaction(next.factions, faction, delta) };
+        toast.push(`${FACTION_LABEL[faction]} ${delta > 0 ? '+' : ''}${delta}`);
+      }
+
+      // 소화한 사건은 대기열에서 빠진다
+      next = {
+        ...next,
+        pendingApproach: next.pendingApproach.filter((id) => id !== effect.companionId),
+      };
+
+      set({ state: next, toast: toast.length > 0 ? toast.join(' · ') : null });
+      void get().save('relationship');
+    }
+
+    // 마무리 대사가 없으면 고르는 즉시 닫힌다
+    if (option.reply === '') {
+      set({ dialogue: null, approaching: null });
       return;
     }
     set({ dialogue: { ...d, phase: 'typing', reply: option.reply } });
@@ -280,6 +368,107 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeDialogue() {
     set({ dialogue: null });
+  },
+
+  beginApproach() {
+    const { state, approaching } = get();
+    if (state === null || approaching !== null) return;
+    if (state.world.currentMap !== 'town') return;
+
+    // 대기 중인 인물이 둘 이상이면 호감이 높은 쪽부터 한 명씩 (§7.3)
+    const who = nextApproach(state);
+    if (who === null) return;
+    set({ approaching: who.id });
+  },
+
+  approachArrived() {
+    const { state, approaching } = get();
+    if (state === null || approaching === null) return;
+    const companion = state.companions[approaching];
+    if (companion === undefined) return;
+
+    const tier = pendingTier(companion);
+    if (tier === null) {
+      set({ approaching: null });
+      return;
+    }
+
+    const script = buildEventScript(companion, tier, {
+      townName: state.town.name,
+      characterName: companion.name,
+    });
+    if (script === null) {
+      set({ approaching: null });
+      return;
+    }
+    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+  },
+
+  /** 무시하고 걸어갔다. 세 번이면 호감 −3 과 함께 물러난다 (§7.3) */
+  abandonApproach() {
+    const { state, approaching, approachIgnores } = get();
+    if (approaching === null) return;
+
+    const count = (approachIgnores[approaching] ?? 0) + 1;
+    const ignores = { ...approachIgnores, [approaching]: count };
+
+    if (state !== null && count >= APPROACH_IGNORE_LIMIT) {
+      const companion = state.companions[approaching];
+      if (companion !== undefined) {
+        set({
+          state: {
+            ...state,
+            companions: {
+              ...state.companions,
+              [approaching]: withAffinity(companion, AFFINITY.ignoredApproach),
+            },
+            // 사건은 사라지지 않는다. 다시 대기열로 돌아간다
+            pendingApproach: state.pendingApproach.filter((id) => id !== approaching),
+          },
+        });
+      }
+      ignores[approaching] = 0;
+    }
+
+    set({ approaching: null, approachIgnores: ignores });
+  },
+
+  setEscort(companionId) {
+    const { state } = get();
+    if (state === null) return;
+    if (companionId === null) {
+      set({ state: { ...state, escort: null } });
+      void get().save('relationship');
+      return;
+    }
+    const companion = state.companions[companionId];
+    if (companion === undefined) return;
+    // 동료(40) 이상만. 부상 중이면 못 데려간다
+    if (companion.affinity < ESCORT_MIN_AFFINITY) return;
+    if (companion.injuredUntilTurn > state.world.turn) return;
+    set({ state: { ...state, escort: companionId } });
+    void get().save('relationship');
+  },
+
+  talkToPatron(patronId) {
+    const { state } = get();
+    if (state === null) return;
+
+    const existing = state.patrons[patronId];
+    const trust = Math.min(TRUST_MAX, (existing?.trust ?? 0) + TRUST.talk);
+    const record = {
+      id: patronId,
+      met: true,
+      trust,
+      questsCleared: existing?.questsCleared ?? [],
+      activeQuestId: existing?.activeQuestId ?? null,
+    };
+
+    set({
+      state: { ...state, patrons: { ...state.patrons, [patronId]: record } },
+      toast: `신뢰 +${TRUST.talk}`,
+    });
+    void get().save('relationship');
   },
 
   openMenu(tab) {
@@ -448,6 +637,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
       next.hero = { ...next.hero, relics: [...next.hero.relics, relic.id] };
     }
 
+    // ── 호감 (§7.3). 교류 버튼이 아니라 함께 겪은 일에서 오른다 ──
+    const companions = { ...next.companions };
+    const affinityNotes: string[] = [];
+
+    // 동행 탐사 — 판정 등급별
+    const escortId = next.escort;
+    const escort = escortId === null ? undefined : companions[escortId];
+    if (escort !== undefined) {
+      let moved = withAffinity(escort, AFFINITY.escort[roll.grade]);
+      // 위기면 동행자가 다친다 — 4주간 동행·대화 불가
+      if (roll.grade === 'crisis') {
+        moved = withAffinity(moved, ESCORT_INJURY.affinity);
+        moved = { ...moved, injuredUntilTurn: next.world.turn + ESCORT_INJURY.weeks };
+        affinityNotes.push(`${displayName(moved)}이(가) 다쳤다.`);
+      }
+      companions[moved.id] = moved;
+    }
+
+    // 고향 지역 탐사 — 동행 여부와 무관하다
+    for (const c of Object.values(companions)) {
+      if (c.departedTurn !== null || !isHomeRegion(c, regionId)) continue;
+      companions[c.id] = withAffinity(c, AFFINITY.homeRegion);
+    }
+
+    next = { ...next, companions };
+
     const gained = gainXp(next, outcome.xp);
     next = gained.state;
     next = {
@@ -456,7 +671,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     };
 
     // 연대기에 남는다. 서술은 콘텐츠 문장 그대로
-    const lines = [narration];
+    const lines = [narration, ...affinityNotes];
     if (relic !== null && relic !== undefined) lines.push(relic.found);
     const entries = lines
       .filter((t) => t !== '')
@@ -541,6 +756,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setPrompt(label) {
     if (get().prompt !== label) set({ prompt: label });
+  },
+
+  clearToast() {
+    set({ toast: null });
   },
 
   faceHero(dir) {

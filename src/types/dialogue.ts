@@ -5,6 +5,8 @@
  * 이 파일은 그것을 담아 나르는 그릇일 뿐이다.
  */
 
+import type { FactionId } from './game';
+
 /** 말하는 이가 누구인지. 초상과 말투를 여기서 끌어온다 */
 export interface SpeakerRef {
   kind: 'companion' | 'patron';
@@ -29,8 +31,14 @@ export interface DialogueOption {
   text: string;
   /** 고르면 이어지는 마무리 대사 한 줄 (§8.3) */
   reply: string;
-  /** 화면 상단에 짧게 띄울 문구. 실제로 적용된 변화만 적는다 */
-  toast?: string;
+  /** 고르면 실제로 일어나는 일. 정답은 없다 — 적게 오르는 쪽은 다른 것을 준다 (§8.4) */
+  effect?: {
+    companionId?: string;
+    affinity?: number;
+    factionShift?: [FactionId, number];
+    /** 소화한 대화 사건 id. 같은 사건이 다시 오지 않게 표시한다 */
+    clearedEvent?: string;
+  };
 }
 
 export interface DialogueScript {

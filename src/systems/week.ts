@@ -16,6 +16,7 @@ import { CHRONICLE_TEXT } from '@/data/chronicle';
 import { applyProduction, computeHeal, computeProduction } from './economy';
 import { eraFor, townPower } from './eras';
 import { appendEntries, makeEntry } from './chronicle';
+import { queueApproaches } from './relationships';
 
 export interface WeekInput {
   /**
@@ -73,7 +74,9 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
   }
 
   // ── 4. 관계 갱신 — 호감 반영, 다가옴 판정 (§7.3) ──────
-  //    관계 시스템이 붙을 때 이 자리에 들어온다. 순서를 지킬 것.
+  // 문턱을 넘고 아직 소화하지 않은 사건이 있는 인물을 대기열에 세운다.
+  // 실제로 다가오는 건 다음에 마을에 들어설 때다.
+  next = { ...next, pendingApproach: queueApproaches(next) };
 
   // ── 5. 세계 이벤트 판정 (12%) ────────────────────────
   //    world-content.ts 의 WORLD_EVENTS 를 쓴다. 이 자리에 들어온다.

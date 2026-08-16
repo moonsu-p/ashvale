@@ -6,7 +6,9 @@
  * 이 파일이 하는 일은 어떤 줄을 어떤 차례로 보여줄지 고르고, 치환 토큰을 채우는 것뿐이다.
  */
 
+import type { CompanionRecord } from '@/types/game';
 import type { DialogueOption, DialogueScript, SpeakerRef } from '@/types/dialogue';
+import { toneFor } from './relationships';
 import { COMPANION_VOICES, type AffinityTier } from '@/data/content/companion-dialogue';
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 import { DIALOGUE_EVENTS } from '@/data/content/dialogue-events';
@@ -27,6 +29,8 @@ export interface DialogueRequest {
   townName: string;
   /** 플레이어가 붙인 이름. 아직 없으면 비워 둔다 — 원형 이름표로 대신한다 */
   characterName?: string;
+  /** 말투 단계 (§15). 없으면 낯선 사람으로 본다 */
+  tone?: AffinityTier;
 }
 
 /** 콘텐츠의 치환 토큰을 채운다. 뒤따르는 조사는 앞말에 맞춰진다 */
@@ -64,10 +68,11 @@ function replyIndex(archetypeId: string, tier: AffinityTier, choiceIndex: number
 export function buildCompanionScript(
   archetypeId: string,
   req: DialogueRequest,
-  tier: AffinityTier = 'stranger',
+  tone?: AffinityTier,
 ): DialogueScript | null {
   const voice = COMPANION_VOICES[archetypeId];
   if (voice === undefined) return null;
+  const tier: AffinityTier = tone ?? req.tone ?? 'stranger';
 
   // 이름은 플레이어가 붙인다. 아직 없으면 원형 이름표로 대신한다
   const ctx: DialogueContext = {
@@ -81,27 +86,61 @@ export function buildCompanionScript(
   const opener = talkLine(archetypeId, tier, 0);
   if (opener !== null) lines.push(fillTokens(opener, ctx));
 
-  // 대화 사건이 있으면 상황 서술을 얹고 선택지를 연다 (§8.4)
-  const event = DIALOGUE_EVENTS.find((e) => e.archetypeId === archetypeId && e.tier === 20);
-
-  let choices: DialogueOption[] | undefined;
-  if (event !== undefined) {
-    lines.push(fillTokens(event.situation, ctx));
-    choices = event.choices.slice(0, MAX_CHOICES).map((c, i) => ({
-      id: `${event.id}:${i}`,
-      text: fillTokens(c.text, ctx),
-      // 선택지별 결과 대사는 콘텐츠에 없다. 그 인물의 다른 대사로 갈음한다 —
-      // 여기서 새 문장을 지어내면 문체가 무너진다.
-      // 0번은 이미 첫 줄로 썼으므로 1번부터 돌린다. 같은 말을 두 번 하지 않게
-      reply: fillTokens(talkLine(archetypeId, tier, replyIndex(archetypeId, tier, i)) ?? '', ctx),
-    }));
-  }
-
+  // 그냥 말을 건 것뿐이다. 선택지는 다가옴 사건에서만 열린다 (§7.3, §8.4)
   return {
     speakerName: ctx.characterName,
     portrait: { speaker: { kind: 'companion', id: archetypeId }, wantSlot: 0, label: voice.label },
     lines,
-    ...(choices !== undefined ? { choices } : {}),
+  };
+}
+
+/**
+ * 다가옴으로 열리는 대화 사건 (§8.4).
+ *
+ * **주사위를 굴리지 않는다.** 탐사는 판정이지만 대화는 선택이다.
+ * 정답이 없다 — 호감이 적게 오르는 선택지는 세력 평판 같은 다른 것을 준다.
+ */
+export function buildEventScript(
+  companion: CompanionRecord,
+  tier: number,
+  req: DialogueRequest,
+): DialogueScript | null {
+  const voice = COMPANION_VOICES[companion.archetypeId];
+  const event = DIALOGUE_EVENTS.find(
+    (e) => e.archetypeId === companion.archetypeId && e.tier === tier,
+  );
+  if (voice === undefined || event === undefined) return null;
+
+  const tone = toneFor(companion);
+  const name = req.characterName !== undefined && req.characterName !== '' ? req.characterName : voice.label;
+  const ctx: DialogueContext = {
+    townName: req.townName,
+    characterName: name,
+    address: voice.address[tone],
+  };
+
+  const choices: DialogueOption[] = event.choices.slice(0, MAX_CHOICES).map((c, i) => ({
+    id: `${event.id}:${i}`,
+    text: fillTokens(c.text, ctx),
+    reply: fillTokens(talkLine(companion.archetypeId, tone, replyIndex(companion.archetypeId, tone, i)) ?? '', ctx),
+    effect: {
+      companionId: companion.id,
+      affinity: c.affinity,
+      ...(c.factionShift !== undefined ? { factionShift: c.factionShift } : {}),
+      clearedEvent: event.id,
+    },
+  }));
+
+  return {
+    speakerName: name,
+    portrait: {
+      speaker: { kind: 'companion', id: companion.archetypeId },
+      // 감정이 실린 대사는 슬롯 1. 없으면 조용히 0으로 내려간다 (§8.2)
+      wantSlot: 1,
+      label: voice.label,
+    },
+    lines: [fillTokens(event.situation, ctx)],
+    choices,
   };
 }
 

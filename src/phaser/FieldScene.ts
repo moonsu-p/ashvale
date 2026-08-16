@@ -14,7 +14,7 @@ import { ASSETS, getAsset } from '@/data/assets';
 import { CHAR_TINT_SCALE, PALETTE, SEASON_TINT } from '@/data/palette';
 import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
-import { loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
+import { isBlocked, loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
@@ -34,6 +34,8 @@ export interface FieldSceneCallbacks {
   onAction: (object: MapObject | null) => void;
   /** 한 칸 밟고 올라섰다. 지역 사건 노드는 밟는 것으로 발동한다 (§11) */
   onEnterTile: (object: MapObject) => void;
+  /** 다가오던 인물이 앞까지 왔다 (§7.3) */
+  onApproachArrive: () => void;
 }
 
 /** 타일 좌표를 세계 좌표로. 스프라이트 기준점은 발밑(가운데 아래)이다 */
@@ -51,6 +53,10 @@ export class FieldScene extends Phaser.Scene {
   /** 프롬프트가 건설·증축을 가르려면 레벨을 알아야 한다 */
   private buildings: Record<string, number> = {};
   private seasonOverlay: Phaser.GameObjects.Rectangle | null = null;
+  /** 지금 걸어오고 있는 인물의 스프라이트 */
+  private approachSprite: Phaser.GameObjects.Sprite | null = null;
+  /** 씬이 서기 전에 들어온 다가옴 요청 */
+  private wantApproach: string | null = null;
   private hero: HeroTile = { x: 0, y: 0, dir: 'down' };
   private heroSprite: Phaser.GameObjects.Sprite | null = null;
   private npcLayer: Phaser.GameObjects.Group | null = null;
@@ -132,6 +138,13 @@ export class FieldScene extends Phaser.Scene {
     }
 
     this.applySeason(state.world.week);
+
+    // 씬이 서기 전에 들어온 다가옴이 있으면 이제 시작한다
+    if (this.wantApproach !== null && this.map !== null && this.heroSprite !== null) {
+      const pending = this.wantApproach;
+      this.wantApproach = null;
+      this.setApproach(pending);
+    }
 
     // 걷는 중에는 씬이 앞서 있다. 트윈과 싸우지 않게 둔다
     if (!this.walking) {
@@ -291,6 +304,86 @@ export class FieldScene extends Phaser.Scene {
   }
 
   // ── 매 프레임 ───────────────────────────────────────────
+
+  /**
+   * 인물이 플레이어 쪽으로 걸어온다 (§7.3).
+   *
+   * **플레이어가 찾아가는 것이 아니다.** 마을에 들어선 순간 스프라이트가
+   * 이쪽으로 이동하고, 앞에 서면 대화가 저절로 열린다.
+   */
+  setApproach(spriteId: string | null): void {
+    // 앞서 걸어오던 스프라이트가 있으면 트윈까지 함께 끊는다.
+    // 스프라이트만 지우면 트윈이 살아남아 없어진 대상 위에서 onComplete 가 터진다
+    if (this.approachSprite !== null) {
+      this.tweens.killTweensOf(this.approachSprite);
+      this.approachSprite.destroy();
+      this.approachSprite = null;
+    }
+
+    // 씬이 아직 안 섰으면 적어 두었다가 맵이 준비되면 시작한다.
+    // 마을에서 새로 켠 판은 이 경로로 들어온다
+    this.wantApproach = spriteId;
+    if (spriteId === null || this.map === null || this.heroSprite === null) return;
+    this.wantApproach = null;
+
+    const from = this.approachStart();
+    if (from === null) {
+      // 설 자리가 없으면 걷는 연출을 건너뛰고 바로 말을 건다
+      this.cbs.onApproachArrive();
+      return;
+    }
+
+    const sprite = this.add.sprite(worldX(from.x), worldY(from.y), this.textureFor(spriteId));
+    sprite.setOrigin(0.5, 1);
+    sprite.setDepth(worldY(from.y));
+    this.ensureAnims(spriteId);
+    this.approachSprite = sprite;
+
+    // 주인공 바로 앞 칸에서 멈춘다
+    const toX = worldX(this.hero.x);
+    const toY = worldY(this.hero.y - 1);
+
+    const dir: Dir =
+      Math.abs(toX - sprite.x) > Math.abs(toY - sprite.y)
+        ? toX > sprite.x
+          ? 'right'
+          : 'left'
+        : toY > sprite.y
+          ? 'down'
+          : 'up';
+    if (this.textures.exists(spriteId)) sprite.play(`${spriteId}-walk-${dir}`, true);
+
+    this.tweens.add({
+      targets: sprite,
+      x: toX,
+      y: toY,
+      duration: STEP_MS * 6,
+      ease: 'Linear',
+      onUpdate: () => sprite.setDepth(sprite.y),
+      onComplete: () => {
+        // 그새 다른 스프라이트로 갈렸으면 이 도착은 무효다
+        if (this.approachSprite !== sprite || !sprite.active) return;
+        sprite.anims?.stop();
+        if (this.textures.exists(spriteId)) sprite.setFrame(frameIndex('down', IDLE_FRAME));
+        this.cbs.onApproachArrive();
+      },
+    });
+  }
+
+  /** 주인공에게서 조금 떨어진, 걸어올 수 있는 자리 */
+  private approachStart(): { x: number; y: number } | null {
+    const map = this.map;
+    if (map === null) return null;
+    const candidates = [
+      { x: this.hero.x, y: this.hero.y + 5 },
+      { x: this.hero.x + 5, y: this.hero.y },
+      { x: this.hero.x - 5, y: this.hero.y },
+      { x: this.hero.x, y: this.hero.y - 5 },
+      { x: this.hero.x + 3, y: this.hero.y + 3 },
+    ];
+    for (const c of candidates) if (!isBlocked(map, c.x, c.y)) return c;
+    return null;
+  }
 
   /** 대화가 열리고 닫힐 때 호스트가 알려 준다 */
   setPaused(paused: boolean): void {
