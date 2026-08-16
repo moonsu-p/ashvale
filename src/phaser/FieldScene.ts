@@ -19,6 +19,7 @@ import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
 import { readInput } from './inputBus';
+import { play } from '@/audio/sfx';
 
 const S = TILE.source;
 const HERO_SPRITE = 'char.hero';
@@ -446,12 +447,14 @@ export class FieldScene extends Phaser.Scene {
       case 'turn':
         this.face(dir);
         this.turnUntil = time + TURN_HOLD_MS;
+        play('turn');
         break;
 
       case 'blocked':
         // 벽을 보고 선다. 제자리에서 발만 구르지는 않는다
         if (this.hero.dir !== dir) this.face(dir);
         else this.setIdleFrame();
+        play('bump');
         break;
 
       case 'step':
@@ -473,6 +476,7 @@ export class FieldScene extends Phaser.Scene {
 
     this.walking = true;
     this.hero = { x: to.x, y: to.y, dir };
+    play('step');
     this.cbs.onStep(to, dir);
     this.refreshPrompt();
     this.playWalk(dir);

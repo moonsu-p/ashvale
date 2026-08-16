@@ -51,6 +51,8 @@ import {
 } from '@/systems/market';
 import { josa } from '@/systems/korean';
 import { COLLAPSE_TEXT, RELIC_SALE_FOOD } from '@/data/collapse';
+import { AUDIO_KEY } from '@/data/audio';
+import { play, setAudioEnabled } from '@/audio/sfx';
 
 const RESOURCE_NAME: Record<ResourceId, string> = {
   wood: '목재',
@@ -98,6 +100,9 @@ interface GameStore {
   migratedFrom: number | null;
   /** navigator.storage.persist() 승인 여부 */
   persisted: boolean;
+  /** 효과음. 세이브와 별개 키에 둔다 — 판을 지워도 설정은 남는다 */
+  audio: boolean;
+  setAudio: (on: boolean) => void;
   /** 하단 상호작용 문구. 씬이 올려 준다. 저장하지 않는다 */
   prompt: string | null;
   /** 화면 위쪽에 잠깐 뜨는 결과 문구 (§8.3) — `호감 +8` */
@@ -153,8 +158,8 @@ interface GameStore {
   giveGift: (companionId: string, giftId: string) => void;
 
   /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
-  menu: 'companions' | 'market' | 'chronicle' | 'bundle' | null;
-  openMenu: (tab: 'companions' | 'market' | 'chronicle' | 'bundle') => void;
+  menu: 'companions' | 'market' | 'chronicle' | 'bundle' | 'settings' | null;
+  openMenu: (tab: 'companions' | 'market' | 'chronicle' | 'bundle' | 'settings') => void;
   closeMenu: () => void;
 
   /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
@@ -250,6 +255,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   backupKey: null,
   migratedFrom: null,
   persisted: false,
+  audio: true,
   prompt: null,
   toast: null,
   hint: null,
@@ -301,6 +307,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     set({ persisted: await storage.isPersisted() });
+
+    // 소리 설정은 세이브와 별개 키다. 어댑터를 거쳐 읽는다
+    try {
+      const saved = await storage.getText(AUDIO_KEY);
+      const on = saved !== 'off';
+      setAudioEnabled(on);
+      set({ audio: on });
+    } catch {
+      setAudioEnabled(true);
+    }
+  },
+
+  setAudio(on) {
+    setAudioEnabled(on);
+    set({ audio: on });
+    // 켜는 순간 한 번 들려 준다. 잘 나오는지 알아야 한다
+    if (on) play('confirm');
+    void getStorage().setText(AUDIO_KEY, on ? 'on' : 'off');
   },
 
   async startNewGame(opts) {
@@ -354,6 +378,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    play('talk');
+
     // 마무리 대사를 보고 있었으면 여기서 닫는다
     if (d.reply !== null) {
       set({ dialogue: null });
@@ -387,6 +413,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   chooseDialogue(optionId) {
     const d = get().dialogue;
     if (d === null || d.phase !== 'choosing') return;
+
+    play('choose');
 
     const option = d.script.choices?.find((c) => c.id === optionId);
     if (option === undefined) {
@@ -744,6 +772,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       error: null,
       toast: `호감 ${delta > 0 ? '+' : ''}${delta}`,
     });
+    play('warm');
     void get().save('relationship');
   },
 
@@ -1009,6 +1038,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
+    play('build');
+
     // 건설도 연대기에 남는다 (§4). 주 종료를 기다리지 않는다
     const def = getBuilding(buildingId);
     const entry = makeEntry(
@@ -1039,6 +1070,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastCollapseTurn: result.state.world.turn,
       });
       set({ ledger, toast: '무너졌다', approaching: null });
+      play('collapse');
       void saveLedger(getStorage(), ledger);
     }
 

@@ -14,7 +14,53 @@ const TABS = [
   { id: 'market', label: '시장' },
   { id: 'chronicle', label: '연대기' },
   { id: 'bundle', label: '꾸러미' },
+  { id: 'settings', label: '설정' },
 ] as const;
+
+/** 소리는 파일 없이 그 자리에서 합성한다. 끌 수 있어야 한다 */
+function SettingsPanel() {
+  const audio = useGameStore((s) => s.audio);
+  const setAudio = useGameStore((s) => s.setAudio);
+  const persisted = useGameStore((s) => s.persisted);
+  const request = useGameStore((s) => s.requestPersistence);
+
+  return (
+    <div className="space-y-3 text-[12px]">
+      <label className="flex items-center justify-between border-b border-stoneDark/25 pb-2">
+        <span>효과음</span>
+        <button
+          type="button"
+          onClick={() => setAudio(!audio)}
+          style={{ minHeight: TOUCH_MIN }}
+          className={`rounded border border-stoneDark px-4 text-[12px] ${
+            audio ? 'bg-gold text-ink' : 'bg-paperDim text-inkSoft'
+          }`}
+        >
+          {audio ? '켜짐' : '꺼짐'}
+        </button>
+      </label>
+      <p className="text-[11px] leading-relaxed text-inkSoft">
+        음원 파일을 쓰지 않습니다. 소리는 그 자리에서 만들어 냅니다 — 받아오는 것이 없습니다.
+      </p>
+
+      <label className="flex items-center justify-between border-b border-stoneDark/25 pb-2">
+        <span>지속 저장</span>
+        <button
+          type="button"
+          disabled={persisted}
+          onClick={() => void request()}
+          style={{ minHeight: TOUCH_MIN }}
+          className="rounded border border-stoneDark bg-paperDim px-4 text-[12px] disabled:opacity-50"
+        >
+          {persisted ? '승인됨' : '요청'}
+        </button>
+      </label>
+      <p className="text-[11px] leading-relaxed text-inkSoft">
+        승인해 두면 브라우저가 저장 공간을 함부로 비우지 않습니다.
+      </p>
+    </div>
+  );
+}
 
 /** 연대기는 무주어 문어체다. 최근 것이 위로 오게 뒤집어 보여 준다 */
 function ChroniclePanel() {
@@ -67,6 +113,7 @@ export function MenuOverlay() {
           {menu === 'market' && <MarketPanel />}
           {menu === 'chronicle' && <ChroniclePanel />}
           {menu === 'bundle' && <BundlePanel />}
+          {menu === 'settings' && <SettingsPanel />}
         </div>
 
         <button
