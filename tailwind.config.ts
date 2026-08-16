@@ -1,6 +1,6 @@
 import type { Config } from 'tailwindcss';
 import { PALETTE, CHAR } from './src/data/palette';
-import { VIEWPORT, BANDS, TILE, TOUCH_MIN } from './src/data/layout';
+import { BANDS, CONTROLS_HEIGHT_CSS, FRAME_MAX_WIDTH, TILE, TOUCH_MIN } from './src/data/layout';
 
 /**
  * Tailwind 기본 팔레트를 쓰지 않는다 (CLAUDE.md).
@@ -26,13 +26,21 @@ export default {
     extend: {
       spacing: {
         hud: `${BANDS.hudHeight}px`,
-        controls: `${BANDS.controlsHeight}px`,
         field: `${BANDS.fieldMinHeight}px`,
         touch: `${TOUCH_MIN}px`,
         tile: `${TILE.render}px`,
+        // 노치·펀치홀·제스처 바를 피한다. 지원하지 않는 기기에서는 0 이 된다
+        'safe-t': 'env(safe-area-inset-top, 0px)',
+        'safe-b': 'env(safe-area-inset-bottom, 0px)',
+        'safe-l': 'env(safe-area-inset-left, 0px)',
+        'safe-r': 'env(safe-area-inset-right, 0px)',
+      },
+      height: {
+        // 화면이 길수록 조금 자란다
+        controls: CONTROLS_HEIGHT_CSS,
       },
       maxWidth: {
-        viewport: `${VIEWPORT.width}px`,
+        viewport: `${FRAME_MAX_WIDTH}px`,
       },
     },
   },

@@ -6,10 +6,15 @@ import { FieldBand } from '@/ui/FieldBand';
 import { ControlsBand } from '@/ui/ControlsBand';
 import { useKeyboard } from '@/ui/useKeyboard';
 
-/** 393dp 세로 한 통. 넓은 화면에서는 가운데로 모은다 */
+/**
+ * 세로 한 통. 폰에서는 화면을 꽉 채우고, 넓은 화면에서만 가운데로 모은다.
+ * 좌우 안전 영역을 비우는 건 접는 기기·곡면 화면 때문이다.
+ */
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex h-full w-full max-w-viewport flex-col bg-paper">{children}</div>
+    <div className="mx-auto flex h-full w-full max-w-viewport flex-col bg-paper pl-safe-l pr-safe-r">
+      {children}
+    </div>
   );
 }
 
