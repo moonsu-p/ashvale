@@ -60,6 +60,39 @@ export function resolveMove(
   return { kind: 'step', dir, to };
 }
 
+/**
+ * 갇힌 자리에서 꺼낸다.
+ *
+ * 맵이 바뀌면 예전 세이브의 `heroTile` 이 막힌 칸이 될 수 있다.
+ * 실제로 그런 일이 있었다 — 마을을 20×18 에서 36×30 으로 옮기면서
+ * 옛 시작 칸이 잠긴 수풀 한복판이 되어 사방이 다 막혔다.
+ *
+ * 서 있는 칸이 막혔으면 가장 가까운 걸어갈 수 있는 칸으로 옮기고,
+ * 그마저 없으면 그 맵의 기본 자리로 되돌린다.
+ */
+export function rescueTile(
+  map: TileMapData,
+  tile: HeroTile,
+  fallback: { x: number; y: number; dir: Dir },
+): HeroTile {
+  if (!isBlocked(map, tile.x, tile.y)) return tile;
+
+  // 둘레를 넓혀 가며 성한 칸을 찾는다
+  for (let radius = 1; radius <= 24; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        // 테두리만 본다. 안쪽은 이미 지난 바퀴에서 봤다
+        if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+        const x = tile.x + dx;
+        const y = tile.y + dy;
+        if (!isBlocked(map, x, y)) return { x, y, dir: tile.dir };
+      }
+    }
+  }
+
+  return { ...fallback };
+}
+
 /** 오브젝트 종류별 프롬프트 문구 (§5) */
 const PROMPT: Record<MapObject['type'], string> = {
   npc: '말 걸기',

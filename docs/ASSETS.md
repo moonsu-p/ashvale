@@ -2,19 +2,24 @@
 
 기획서 §11.2, §11.3 대응. **여기 없는 에셋은 프로젝트에 넣지 않는다.**
 
-## 타일셋 — Kenney 계열로 통일
+## 타일셋 — 쓰지 않기로 했다
 
-한 작가의 계열로 맞추면 §10.2 팔레트 리맵 부담이 크게 줄고 스타일이 처음부터 붙는다.
+**지형은 외부 타일셋 대신 팔레트 색으로 직접 그린다.**
 
-| 팩 | 용도 | 수량 | 라이선스 | 출처 |
-|---|---|---|---|---|
-| **15 Top-Down Character Sprites** | **필드 캐릭터 15종 (4방향 걷기)** | 15 | CC0 1.0 | https://piano-no-renshu.itch.io/top-down-character-sprites |
-| **Tiny Town** | 지형, 건물 | 130 | CC0 1.0 | https://kenney.nl/assets/tiny-town |
-| **Tiny Dungeon** | 지하 대공동, 관문, 아이템 | 130+ | CC0 1.0 | https://kenney.nl/assets/tiny-dungeon |
-| **Map Pack** (보조) | 길·다리·지형 보강 | 180 | CC0 1.0 | https://kenney.nl/assets/map-pack |
+| 팩 | 상태 |
+|---|---|
+| **15 Top-Down Character Sprites** | **채택.** 필드 캐릭터 15종 (4방향 걷기), CC0 1.0, [출처](https://piano-no-renshu.itch.io/top-down-character-sprites) |
+| Tiny Town / Tiny Dungeon / Map Pack | 미채택 |
 
-- 전부 **16×16 원본**이며 §10.1의 ×2 스케일(32px 렌더) 규격과 맞는다
-- Map Pack은 Tiny 계열과 결이 약간 다르다. **길·다리 등 형태가 단순한 타일만** 골라 쓰고, 반드시 팔레트 리맵을 거친다
+받아서 붙이는 대신 16px 타일을 코드로 그린다. 생김새는 `src/data/terrain.ts` 의
+`TERRAIN_LOOK` 이 유일한 출처이고, 그리는 일은 `src/render/terrain.ts` 가 한다.
+
+- 팔레트 32색 밖으로 나갈 수가 없으니 색온도가 어긋날 일이 없다
+- 대신 **변화가 없다.** 나무는 전부 같은 나무고 벽은 전부 같은 벽이다.
+  창문·문틀·잡동사니 같은 잔재미가 없다
+- 나중에 타일셋을 쓰기로 하면 `raw-assets/kenney-*/` 에 넣고 `npm run remap` 을
+  돌린 뒤 `src/data/assets.ts` 에 항목을 더하면 된다.
+  **Kenney 시트는 에셋 사이에 1px 간격이 있다.** 16으로 그냥 자르면 밀린다
 
 ### 캐릭터 팩 — 실측 확정값
 

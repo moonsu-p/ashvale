@@ -46,42 +46,17 @@ export interface AssetEntry {
   license?: AssetLicense;
 }
 
-/** Kenney 계열 공통 시트 값. 1px 간격이 있다 — 16으로 그냥 자르면 밀린다 */
-const KENNEY_SHEET: SheetSpec = {
-  frameWidth: 16,
-  frameHeight: 16,
-  spacing: 1,
-  margin: 0,
-};
-
-const KENNEY_CC0 = (source: string): AssetLicense => ({ source, type: 'CC0-1.0' });
-
-const TILESETS: AssetEntry[] = [
-  {
-    id: 'tiles.town',
-    kind: 'tileset',
-    path: null,
-    sheet: KENNEY_SHEET,
-    placeholder: { label: '마을 타일', color: 'grass' },
-    license: KENNEY_CC0('https://kenney.nl/assets/tiny-town'),
-  },
-  {
-    id: 'tiles.dungeon',
-    kind: 'tileset',
-    path: null,
-    sheet: KENNEY_SHEET,
-    placeholder: { label: '대공동 타일', color: 'slate' },
-    license: KENNEY_CC0('https://kenney.nl/assets/tiny-dungeon'),
-  },
-  {
-    id: 'tiles.map',
-    kind: 'tileset',
-    path: null,
-    sheet: KENNEY_SHEET,
-    placeholder: { label: '길·다리 타일', color: 'dirt' },
-    license: KENNEY_CC0('https://kenney.nl/assets/map-pack'),
-  },
-];
+/**
+ * **지형은 파일로 싣지 않는다.**
+ *
+ * 외부 타일셋(Kenney) 대신 팔레트 색으로 직접 그리기로 했다.
+ * 지형의 생김새는 src/data/terrain.ts 의 TERRAIN_LOOK 이 유일한 출처이고,
+ * 그리는 일은 src/render/terrain.ts 가 한다. 그래서 여기 실을 것이 없다.
+ *
+ * 나중에 타일셋을 쓰기로 하면 여기에 항목을 더하고
+ * `sheet: { frameWidth: 16, frameHeight: 16, spacing: 1, margin: 0 }` 을 준다.
+ * **Kenney 시트는 에셋 사이에 1px 간격이 있다.** 16으로 그냥 자르면 밀린다.
+ */
 
 /** 캐릭터 시트 값은 characters.ts 에서 그대로 가져온다. 다시 적지 않는다 */
 const CHARACTER_SHEET: SheetSpec = {
@@ -121,7 +96,7 @@ const CHARACTERS: AssetEntry[] = CHAR_ROSTER.map((slot, i) => ({
   },
 }));
 
-export const ASSETS: readonly AssetEntry[] = [...TILESETS, ...CHARACTERS];
+export const ASSETS: readonly AssetEntry[] = [...CHARACTERS];
 
 const BY_ID = new Map(ASSETS.map((a) => [a.id, a]));
 

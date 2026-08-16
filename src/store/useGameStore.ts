@@ -21,6 +21,8 @@ import { REGION_ENTRY } from '@/data/maps/region';
 import { REGION_TEXT } from '@/data/content/region-text';
 import { START_HERO_TILE } from '@/data/start';
 import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
+import { loadMap } from '@/systems/map';
+import { rescueTile } from '@/systems/movement';
 import { gainXp, type LevelUp } from '@/systems/progression';
 import { getRelic, rollRelic } from '@/systems/relics';
 import { applyToken } from '@/systems/korean';
@@ -204,6 +206,36 @@ interface GameStore {
 const SETTLE_MS = 800;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+/**
+ * 불러온 판이 갇혀 있으면 꺼낸다.
+ *
+ * 맵 모양이 바뀌면 예전 세이브의 좌표가 막힌 칸이 될 수 있다.
+ * 이걸 안 하면 사방이 막힌 자리에서 아무것도 못 하고 앉아 있게 된다.
+ */
+function rescueLoadedState(state: GameState): GameState {
+  let map;
+  try {
+    map = loadMap({
+      mapId: state.world.currentMap,
+      eraIndex: state.world.eraIndex,
+      buildings: state.town.buildings,
+    });
+  } catch {
+    // 없는 맵을 가리키고 있으면 마을로 돌려보낸다
+    return {
+      ...state,
+      world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
+    };
+  }
+
+  const fallback =
+    state.world.currentMap === 'town' ? START_HERO_TILE : REGION_ENTRY;
+  const tile = rescueTile(map, state.world.heroTile, fallback);
+
+  if (tile.x === state.world.heroTile.x && tile.y === state.world.heroTile.y) return state;
+  return { ...state, world: { ...state.world, heroTile: tile } };
+}
+
 function describe(err: unknown): string {
   if (err instanceof StorageError) return err.message;
   if (err instanceof Error) return err.message;
@@ -236,16 +268,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const outcome = await loadGame(storage, Date.now());
       switch (outcome.kind) {
-        case 'loaded':
+        case 'loaded': {
+          // 맵이 바뀌어 서 있던 칸이 막혔을 수 있다. 갇힌 채로 열지 않는다
+          const rescued = rescueLoadedState(outcome.state);
           set({
             status: 'ready',
-            state: outcome.state,
+            state: rescued,
             ledger: outcome.ledger,
             error: null,
             backupKey: null,
             migratedFrom: outcome.migratedFrom,
           });
+          if (rescued !== outcome.state) void get().save('map-change');
           break;
+        }
         case 'empty':
           set({ status: 'empty', state: null, ledger: outcome.ledger, error: null });
           break;

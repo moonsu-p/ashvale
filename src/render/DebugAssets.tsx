@@ -84,7 +84,9 @@ export function DebugAssets() {
       <p className="mb-2 text-[11px] text-inkSoft">
         전체 {ASSETS.length}개 · 미조달 {missing.length}개.
         <br />
-        Kenney 타일셋은 spacing 1, 캐릭터 팩은 spacing 0. 값이 섞이면 타일이 밀린다.
+        지형은 파일이 아니라 팔레트 색으로 그린다. 여기 있는 건 캐릭터뿐이다.
+        <br />
+        캐릭터 팩은 spacing 0. 투명은 마젠타 알파 0이라 알파를 평탄화하면 분홍이 드러난다.
       </p>
       <ul>
         {ASSETS.map((entry) => (
