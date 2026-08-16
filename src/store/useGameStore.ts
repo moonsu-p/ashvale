@@ -48,6 +48,7 @@ import {
   weeklyLimit,
 } from '@/systems/market';
 import { josa } from '@/systems/korean';
+import { COLLAPSE_TEXT, RELIC_SALE_FOOD } from '@/data/collapse';
 
 const RESOURCE_NAME: Record<ResourceId, string> = {
   wood: '목재',
@@ -78,7 +79,8 @@ export interface ExploreView {
   relicName: string | null;
   relicFound: string | null;
 }
-import { getStorage, loadGame, saveAll, StorageError } from '@/storage';
+import { getStorage, loadGame, saveAll, saveLedger, StorageError } from '@/storage';
+import { mergeLedger } from '@/systems/ledger';
 
 export type BootStatus = 'booting' | 'empty' | 'ready' | 'failed';
 
@@ -99,6 +101,11 @@ interface GameStore {
   /** 화면 위쪽에 잠깐 뜨는 결과 문구 (§8.3) — `호감 +8` */
   toast: string | null;
   clearToast: () => void;
+
+  /** 처음 한 번만 보이는 안내. 본 것은 counters.firsts 에 적힌다 */
+  hint: string | null;
+  showHint: (id: string, text: string) => void;
+  dismissHint: () => void;
 
   boot: () => Promise<void>;
   startNewGame: (opts?: { heroName?: string; townName?: string }) => Promise<void>;
@@ -180,6 +187,8 @@ interface GameStore {
   raiseBuilding: (buildingId: string) => void;
   /** 주 종료. §3 의 8단계를 돈다 */
   endWeek: () => void;
+  /** 붕괴 직전, 유물을 넘겨 시간을 산다. 한 번뿐이다 (§13) */
+  sellRelicForTime: () => void;
 
   setPrompt: (label: string | null) => void;
   /** 방향만 바꾼다 */
@@ -211,6 +220,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   persisted: false,
   prompt: null,
   toast: null,
+  hint: null,
   dialogue: null,
   buildPanel: null,
   regionSelect: false,
@@ -981,9 +991,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
   endWeek() {
     const { state } = get();
     if (state === null) return;
-    const { state: next } = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
-    set({ state: next });
+    const result = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+    set({ state: result.state, tradedThisWeek: 0 });
+
+    if (result.collapsed) {
+      // 원장에 붕괴 시점을 남긴다. 이건 불러오기로 지워지지 않는다 (§14)
+      const ledger = mergeLedger(get().ledger, {
+        ledgerVersion: get().ledger.ledgerVersion,
+        maxTurnReached: result.state.world.turn,
+        collapses: result.state.counters.collapses,
+        lastCollapseTurn: result.state.world.turn,
+      });
+      set({ ledger, toast: '무너졌다', approaching: null });
+      void saveLedger(getStorage(), ledger);
+    }
+
     void get().save('turn-end');
+  },
+
+  sellRelicForTime() {
+    const { state } = get();
+    if (state === null || state.hero.relics.length === 0) return;
+
+    // 값을 따지지 않는다. 하나 넘기고 곡식을 받는다
+    const [given, ...rest] = state.hero.relics;
+    const next: GameState = {
+      ...state,
+      hero: { ...state.hero, relics: rest },
+      resources: { ...state.resources, food: state.resources.food + RELIC_SALE_FOOD },
+      counters: { ...state.counters, famineWeeks: 0 },
+    };
+
+    const entry = makeEntry(next.world.turn, next.chronicle.length, COLLAPSE_TEXT.relicSold);
+    set({
+      state: { ...next, chronicle: appendEntries(next.chronicle, [entry]) },
+      toast: `${getRelic(given ?? '')?.name ?? '유물'}을 넘겼다`,
+    });
+    void get().save('manual');
   },
 
   setPrompt(label) {
@@ -992,6 +1036,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   clearToast() {
     set({ toast: null });
+  },
+
+  showHint(id, text) {
+    const { state } = get();
+    // 한 번 본 것은 다시 띄우지 않는다
+    if (state === null || state.counters.firsts[id] === true) return;
+    set({
+      state: { ...state, counters: { ...state.counters, firsts: { ...state.counters.firsts, [id]: true } } },
+      hint: text,
+    });
+    void get().save('manual');
+  },
+
+  dismissHint() {
+    set({ hint: null });
   },
 
   faceHero(dir) {

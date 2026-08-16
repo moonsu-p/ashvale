@@ -100,6 +100,7 @@ export function newGame(input: NewGameInput): GameState {
       collapses: 0,
       confessions: 0,
       firsts: {},
+      famineWeeks: 0,
     },
   };
 }

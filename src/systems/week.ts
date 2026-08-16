@@ -17,6 +17,9 @@ import { applyProduction, computeHeal, computeProduction } from './economy';
 import { eraFor, townPower } from './eras';
 import { appendEntries, makeEntry } from './chronicle';
 import { queueApproaches } from './relationships';
+import { applyEvent, rollEvent } from './worldEvents';
+import { collapse, shouldCollapse } from './collapse';
+import { COLLAPSE_TEXT as CHRONICLE_TEXT_COLLAPSE } from '@/data/collapse';
 
 export interface WeekInput {
   /**
@@ -32,6 +35,8 @@ export interface WeekInput {
 export interface WeekResult {
   state: GameState;
   entries: ChronicleEntry[];
+  /** 이번 주에 마을이 무너졌는가 (§13) */
+  collapsed: boolean;
 }
 
 export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResult {
@@ -79,11 +84,25 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
   next = { ...next, pendingApproach: queueApproaches(next) };
 
   // ── 5. 세계 이벤트 판정 (12%) ────────────────────────
-  //    world-content.ts 의 WORLD_EVENTS 를 쓴다. 이 자리에 들어온다.
+  const event = rollEvent(next, _rng);
+  if (event !== null) {
+    next = applyEvent(next, event);
+    lines.push(event.text);
+  }
+
+  // 식량이 마이너스인 주를 센다 (§13 붕괴 조건)
+  const starving = next.resources.food < 0;
+  next = {
+    ...next,
+    counters: {
+      ...next.counters,
+      famineWeeks: starving ? next.counters.famineWeeks + 1 : 0,
+    },
+  };
 
   // ── 6. 시대 판정 → 해금 판정 ─────────────────────────
   const power = townPower(next.town.buildings);
-  const standing = eraFor(power);
+  const standing = eraFor(power, next.counters.collapses);
   if (standing.eraIndex !== next.world.eraIndex || standing.eraTier !== next.world.eraTier) {
     const before = eraName(next.world.eraIndex, next.world.eraTier);
     const after = eraName(standing.eraIndex, standing.eraTier);
@@ -120,8 +139,23 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
     chronicle: appendEntries(next.chronicle, entries),
   };
 
+  // 붕괴 판정. 주차를 올린 뒤에 본다 — 그 주를 끝까지 살아낸 다음이다 (§13)
+  let collapsed = false;
+  if (shouldCollapse(next)) {
+    const fallen = collapse(next, _rng);
+    const line = CHRONICLE_TEXT_COLLAPSE.collapsed(fallen.generation, next.town.name);
+    next = {
+      ...fallen.state,
+      chronicle: appendEntries(fallen.state.chronicle, [
+        makeEntry(turn, entries.length, line),
+      ]),
+    };
+    entries.push(makeEntry(turn, entries.length, line));
+    collapsed = true;
+  }
+
   // ── 8. 자동 저장 ─────────────────────────────────────
   //    부작용이라 여기서 하지 않는다. 부르는 쪽(스토어)이 저장한다.
 
-  return { state: next, entries };
+  return { state: next, entries, collapsed };
 }

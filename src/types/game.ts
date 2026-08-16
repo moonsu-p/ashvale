@@ -100,10 +100,18 @@ export interface Counters {
   collapses: number;
   confessions: number;
   firsts: Record<string, boolean>;
+  /**
+   * 식량이 마이너스인 채로 이어진 주 수 (§13 붕괴 조건).
+   *
+   * **§4 에 없던 칸이다.** 붕괴는 "식량 0 미만 4주 연속"으로 판정하는데
+   * 이걸 담을 자리가 없었다. 세션에만 두면 새로고침으로 붕괴를 피할 수 있고,
+   * 그건 원장(§14)이 막으려는 바로 그 행동이다. 그래서 판을 2로 올렸다.
+   */
+  famineWeeks: number;
 }
 
 export interface GameState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   createdAt: number;
 
   hero: HeroState;

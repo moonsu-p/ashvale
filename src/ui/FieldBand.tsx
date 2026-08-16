@@ -14,6 +14,8 @@ import { BuildPanel } from './BuildPanel';
 import { RegionSelect } from './RegionSelect';
 import { ExploreResult } from './ExploreResult';
 import { Toast } from './Toast';
+import { FamineBanner } from './FamineBanner';
+import { Hint } from './Hint';
 
 interface Props {
   prompt: string | null;
@@ -31,6 +33,8 @@ export function FieldBand({ prompt, talking }: Props) {
       <RegionSelect />
       <ExploreResult />
       <Toast />
+      <FamineBanner />
+      <Hint />
     </main>
   );
 }

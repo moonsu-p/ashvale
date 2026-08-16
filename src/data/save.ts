@@ -3,8 +3,13 @@
  * 키 문자열과 판 번호를 코드에 박지 않는다.
  */
 
-/** 현재 상태 스키마 판. 모양이 바뀌면 올리고 마이그레이션을 한 단계 추가한다 */
-export const SCHEMA_VERSION = 1 as const;
+/**
+ * 현재 상태 스키마 판. 모양이 바뀌면 올리고 마이그레이션을 한 단계 추가한다.
+ *
+ * 2 — counters.famineWeeks 추가. 붕괴 판정(§13)이 "식량 0 미만 4주 연속"을
+ *     세는데 담을 자리가 없었다.
+ */
+export const SCHEMA_VERSION = 2 as const;
 
 /** 원장 스키마 판. 세이브와 따로 움직인다 */
 export const LEDGER_VERSION = 1 as const;

@@ -18,7 +18,15 @@ type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
 
 /** 키 = 출발 판 번호. MIGRATIONS[1] 은 1판을 2판으로 만든다 */
 const MIGRATIONS: Record<number, Migration> = {
-  // 1: (raw) => ({ ...raw, schemaVersion: 2, /* 새 필드 */ }),
+  /** 1 -> 2: counters.famineWeeks 추가 (§13 붕괴 판정) */
+  1: (raw) => {
+    const counters = isRecord(raw['counters']) ? raw['counters'] : {};
+    return {
+      ...raw,
+      schemaVersion: 2,
+      counters: { ...counters, famineWeeks: 0 },
+    };
+  },
 };
 
 export type MigrateResult =

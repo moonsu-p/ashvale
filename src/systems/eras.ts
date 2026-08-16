@@ -5,6 +5,7 @@
  */
 
 import { ERAS, MYTHIC_POWER, MYTHIC_TIER_STEP } from '@/data/eras';
+import { eraThresholdScale } from './collapse';
 
 /** 마을 지수. 인구와 같은 값이다 */
 export function townPower(buildings: Record<string, number>): number {
@@ -19,10 +20,16 @@ export interface EraStanding {
   eraTier: number;
 }
 
-export function eraFor(power: number): EraStanding {
+/**
+ * 붕괴 1회당 임계값 5% 완화 (§13 재기 보정).
+ * 두 번째 판이 첫 판과 똑같이 무거우면 다시 일어설 마음이 안 난다.
+ */
+export function eraFor(power: number, collapses = 0): EraStanding {
+  const scale = eraThresholdScale(collapses);
+
   let eraIndex = 0;
   for (const era of ERAS) {
-    if (power >= era.power) eraIndex = era.index;
+    if (power >= Math.round(era.power * scale)) eraIndex = era.index;
   }
 
   // power ≥ 90 부터 30 마다 티어가 하나씩 오른다 — 끝이 없다
