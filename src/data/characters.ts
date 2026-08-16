@@ -28,12 +28,19 @@ export const CHAR_SHEET = {
 
 export type Dir = 'down' | 'left' | 'up' | 'right';
 
-/** 행 인덱스 */
+/**
+ * 행 인덱스.
+ *
+ * **왼쪽과 오른쪽이 원래 적힌 것과 반대다.** 실제 시트를 프레임 단위로 펼쳐
+ * 확인했다 (scripts/frame-sheet.ts) — 행 1 은 얼굴이 오른쪽을 향하고,
+ * 행 3 이 왼쪽을 향한다. 위 주석과 기획서 §12 표는 1=왼쪽 3=오른쪽으로
+ * 적혀 있지만 파일이 그렇지 않다. 그대로 두면 좌우가 뒤집혀 걷는다.
+ */
 export const DIR_ROW: Record<Dir, number> = {
   down: 0,
-  left: 1,
+  right: 1,
   up: 2,
-  right: 3,
+  left: 3,
 };
 
 /** 걷기 프레임 순서. 그대로 순환시키면 자연스럽다 */
