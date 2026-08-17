@@ -17,7 +17,8 @@ import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
 import { isBlocked, loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
-import { residentsOf } from '@/systems/roster';
+import { residentsOf, townFolk } from '@/systems/roster';
+import { companionSprite } from '@/data/sprites';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
 import { drawEventMarker, drawLootMarker, drawSpentMarker } from '@/render/markers';
@@ -41,6 +42,14 @@ export interface FieldSceneCallbacks {
   /** 다가오던 인물이 앞까지 왔다 (§7.3) */
   onApproachArrive: () => void;
 }
+
+/** 바라보는 방향의 반대. 동행자를 뒤에 세울 때 쓴다 */
+const BEHIND: Record<Dir, { x: number; y: number }> = {
+  up: { x: 0, y: 1 },
+  down: { x: 0, y: -1 },
+  left: { x: 1, y: 0 },
+  right: { x: -1, y: 0 },
+};
 
 /** 타일 좌표를 세계 좌표로. 스프라이트 기준점은 발밑(가운데 아래)이다 */
 const worldX = (tx: number) => tx * S + S / 2;
@@ -72,6 +81,10 @@ export class FieldScene extends Phaser.Scene {
   private hero: HeroTile = { x: 0, y: 0, dir: 'down' };
   private heroSprite: Phaser.GameObjects.Sprite | null = null;
   private npcLayer: Phaser.GameObjects.Group | null = null;
+  /** 지역에서 뒤를 따라오는 동행자 (§11) */
+  private escortSprite: Phaser.GameObjects.Sprite | null = null;
+  private escortSpriteId = '';
+  private escortTile = { x: 0, y: 0 };
   private mapImage: Phaser.GameObjects.Image | null = null;
 
   /** create() 전에 들어온 상태를 담아 둔다 */
@@ -142,6 +155,8 @@ export class FieldScene extends Phaser.Scene {
       buildings: state.town.buildings,
       // 숙소에 누가 사는지는 관계 상태에서 나온다 (§7.4)
       residents: residentsOf(state).map((c) => ({ id: c.id, archetypeId: c.archetypeId })),
+      // 마을에 서 있을 인물 (§7.6). 동행 중인 사람과 숙소 거주자는 빠진다
+      folk: townFolk(state).map((c) => ({ id: c.id, archetypeId: c.archetypeId })),
     };
 
     // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다
@@ -167,6 +182,9 @@ export class FieldScene extends Phaser.Scene {
       this.placeHero();
       this.refreshPrompt();
     }
+
+    // 주인공 자리가 정해진 뒤에 세운다 — 뒤쪽 칸을 알아야 하기 때문이다
+    this.syncEscort(state);
   }
 
   private buildMap(ctx: MapContext, cacheKey: string): void {
@@ -195,6 +213,10 @@ export class FieldScene extends Phaser.Scene {
     this.buildMarkers(map);
     this.buildLabels(map);
     this.buildHero();
+    // 맵이 갈리면 옛 스프라이트는 버린다. 다음 syncEscort 가 다시 세운다
+    this.escortSprite?.destroy();
+    this.escortSprite = null;
+    this.escortSpriteId = '';
     this.buildSeasonOverlay(map);
   }
 
@@ -423,9 +445,17 @@ export class FieldScene extends Phaser.Scene {
   }
 
   private playWalk(dir: Dir): void {
-    const s = this.heroSprite;
-    if (s === null || !this.textures.exists(HERO_SPRITE)) return;
-    s.play(`${HERO_SPRITE}-walk-${dir}`, true);
+    this.playWalkOn(this.heroSprite, HERO_SPRITE, dir);
+  }
+
+  /** 아무 스프라이트나 걷는 동작으로. 주인공과 동행자가 같이 쓴다 */
+  private playWalkOn(
+    sprite: Phaser.GameObjects.Sprite | null,
+    spriteId: string,
+    dir: Dir,
+  ): void {
+    if (sprite === null || spriteId === '' || !this.textures.exists(spriteId)) return;
+    sprite.play(`${spriteId}-walk-${dir}`, true);
   }
 
   // ── 매 프레임 ───────────────────────────────────────────
@@ -638,12 +668,17 @@ export class FieldScene extends Phaser.Scene {
     const s = this.heroSprite;
     if (s === null) return;
 
+    // 동행자는 주인공이 방금 비운 칸으로 들어온다. 먼저 읽어 둔다
+    const vacated = { x: this.hero.x, y: this.hero.y };
+
     this.walking = true;
     this.hero = { x: to.x, y: to.y, dir };
     play('step');
     this.cbs.onStep(to, dir);
     this.refreshPrompt();
     this.playWalk(dir);
+
+    this.stepEscort(vacated, dir);
 
     this.tweens.add({
       targets: s,
@@ -654,6 +689,77 @@ export class FieldScene extends Phaser.Scene {
       onUpdate: () => s.setDepth(s.y),
       onComplete: () => this.finishStep(),
     });
+  }
+
+  /**
+   * 동행자를 한 칸 끌고 온다 (§11 동행).
+   *
+   * 데려간 사람이 지역에 **아무 데도 없었다.** 호감은 조용히 오르는데
+   * 화면에는 흔적이 없으니 동행을 골랐는지조차 알 수 없었다.
+   * 뒤를 따라오게 하면 데려왔다는 게 보인다.
+   *
+   * 충돌을 보지 않는다 — 주인공이 방금 지나온 칸이라 갈 수 있는 자리가 확실하다.
+   */
+  private stepEscort(to: { x: number; y: number }, dir: Dir): void {
+    const e = this.escortSprite;
+    if (e === null) return;
+
+    this.escortTile = to;
+    this.playWalkOn(e, this.escortSpriteId, dir);
+
+    this.tweens.add({
+      targets: e,
+      x: worldX(to.x),
+      y: worldY(to.y),
+      duration: STEP_MS,
+      ease: 'Linear',
+      // 주인공보다 한 칸 뒤에 있으니 깊이도 제 y 를 따른다
+      onUpdate: () => e.setDepth(e.y),
+      onComplete: () => {
+        if (this.escortSprite !== e || !e.active) return;
+        e.anims?.stop();
+        if (this.textures.exists(this.escortSpriteId)) e.setFrame(frameIndex(dir, IDLE_FRAME));
+      },
+    });
+  }
+
+  /**
+   * 동행자를 세운다. 지역에서만 따라붙는다 —
+   * 마을에서는 제 자리에 서 있고(townFolk), 실내는 좁다.
+   */
+  private syncEscort(state: GameState): void {
+    const inRegion = state.world.currentMap.startsWith('region:');
+    const who = state.escort === null ? undefined : state.companions[state.escort];
+
+    if (!inRegion || who === undefined || who.departedTurn !== null) {
+      this.escortSprite?.destroy();
+      this.escortSprite = null;
+      this.escortSpriteId = '';
+      return;
+    }
+
+    const spriteId = companionSprite(who.archetypeId);
+    // 같은 사람이 이미 따라오고 있으면 그대로 둔다. 다시 만들면 자리가 튄다
+    if (this.escortSprite !== null && this.escortSpriteId === spriteId) return;
+
+    this.escortSprite?.destroy();
+    this.escortSpriteId = spriteId;
+
+    // 처음에는 주인공이 바라보는 반대쪽, 즉 뒤에 세운다
+    const behind = BEHIND[this.hero.dir];
+    const tile = { x: this.hero.x + behind.x, y: this.hero.y + behind.y };
+    this.escortTile =
+      this.map !== null && isBlocked(this.map, tile.x, tile.y) ? { ...this.hero } : tile;
+
+    const sprite = this.add.sprite(
+      worldX(this.escortTile.x),
+      worldY(this.escortTile.y),
+      this.textureFor(spriteId),
+    );
+    sprite.setOrigin(0.5, 1);
+    sprite.setDepth(worldY(this.escortTile.y));
+    if (this.ensureAnims(spriteId)) sprite.setFrame(frameIndex(this.hero.dir, IDLE_FRAME));
+    this.escortSprite = sprite;
   }
 
   private finishStep(): void {

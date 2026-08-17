@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { PALETTE } from '@/data/palette';
-import { CHAR_ROSTER } from '@/data/characters';
+import { companionSprite } from '@/data/sprites';
 import { useGameStore } from '@/store/useGameStore';
 import type { GameState } from '@/types/game';
 import { buildPatronScript, buildScript, type PatronContext } from '@/systems/dialogue';
@@ -33,13 +33,6 @@ function patronContext(state: GameState, patronId: string): PatronContext {
 }
 
 /** 원형에 배정된 스프라이트를 찾는다 (§12 배역표) */
-function spriteForArchetype(archetypeId: string): string {
-  return (
-    CHAR_ROSTER.find((slot) => slot.role === 'companion' && slot.bind === archetypeId)?.spriteId ??
-    'char.comp.1'
-  );
-}
-
 export function PhaserHost() {
   const holder = useRef<HTMLDivElement>(null);
 
@@ -186,7 +179,7 @@ export function PhaserHost() {
       if (s.approaching !== lastApproach) {
         lastApproach = s.approaching;
         const companion = s.approaching === null ? undefined : s.state?.companions[s.approaching];
-        scene.setApproach(companion === undefined ? null : spriteForArchetype(companion.archetypeId));
+        scene.setApproach(companion === undefined ? null : companionSprite(companion.archetypeId));
       }
       // 대화나 패널이 열려 있는 동안 필드는 입력을 받지 않는다
       const busy =

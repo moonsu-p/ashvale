@@ -89,3 +89,27 @@ export function addCompanion(state: GameState, origin: CompanionOrigin): RosterG
     companion,
   };
 }
+
+/**
+ * 마을에 서 있는 인물 (§7.6, §10).
+ *
+ * 이게 없어서 명단에 있는 사람이 **마을 어디에도 없었다.** 마을 맵에는
+ * 기사 하나가 좌표까지 박힌 채로 서 있었고, 나머지는 문턱을 넘어
+ * 다가올 때만 잠깐 나타났다가 사라졌다. 말을 걸려면 다가와 주기를
+ * 기다리는 수밖에 없었다 — 찾아갈 데가 없으니 관계가 자리를 못 얻는다.
+ *
+ * 빠지는 사람:
+ *   - 숙소에 사는 연인은 숙소 안에 있다 (residentsOf)
+ *   - 지금 동행 중인 사람은 함께 지역에 나가 있다
+ *
+ * 순서를 명단에 들어온 차례로 고정한다. 자리가 흔들리면 갔던 데를 또 못 찾는다.
+ */
+export function townFolk(state: GameState): CompanionRecord[] {
+  const indoors = new Set(residentsOf(state).map((c) => c.id));
+
+  return Object.values(state.companions)
+    .filter(
+      (c) => c.departedTurn === null && !indoors.has(c.id) && c.id !== state.escort,
+    )
+    .sort((a, b) => a.joinedTurn - b.joinedTurn || a.id.localeCompare(b.id));
+}

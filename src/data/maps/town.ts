@@ -15,6 +15,7 @@ import type { MapObject, Terrain, TileMapData } from '@/types/map';
 import { TOWN_MAX, inRect, playableRect } from '@/data/eras';
 import { visualStage, wallStage } from '@/data/buildings';
 import { createRng } from '@/systems/rng';
+import { companionSprite } from '@/data/sprites';
 
 const W = TOWN_MAX.width;
 const H = TOWN_MAX.height;
@@ -52,7 +53,32 @@ const GATEWAY_X = 10;
 export interface TownContext {
   eraIndex: number;
   buildings: Record<string, number>;
+  /**
+   * 마을에 서 있을 인물 (§7.6).
+   *
+   * 예전에는 기사 하나가 좌표까지 박힌 채 서 있었고 나머지는 마을에 없었다.
+   * 이제 명단에서 온다 — 상태가 정하고 맵은 그리기만 한다.
+   */
+  folk?: { id: string; archetypeId: string }[];
 }
+
+/**
+ * 인물이 서는 자리. 길과 부지를 피해 잡았다.
+ *
+ * 명단 순서대로 앞에서부터 채운다. **자리를 흔들지 않는다** —
+ * 어제 만난 사람이 오늘 딴 데 가 있으면 찾아갈 데가 없는 것과 같다.
+ * 시대가 낮아 마을이 좁으면 바깥 자리는 그냥 건너뛴다.
+ */
+const FOLK_SPOTS: { x: number; y: number }[] = [
+  { x: 13, y: 23 },
+  { x: 7, y: 21 },
+  { x: 14, y: 17 },
+  { x: 6, y: 26 },
+  { x: 16, y: 26 },
+  { x: 4, y: 18 },
+  { x: 18, y: 20 },
+  { x: 8, y: 15 },
+];
 
 /** 같은 입력이면 같은 맵이다. 씬이 이 열쇠로 다시 그릴지 판단한다 */
 export function townKey(ctx: TownContext): string {
@@ -60,7 +86,9 @@ export function townKey(ctx: TownContext): string {
     .sort()
     .map((id) => `${id}${ctx.buildings[id] ?? 0}`)
     .join(',');
-  return `town:${ctx.eraIndex}:${levels}`;
+  // 누가 마을에 서 있는지도 열쇠에 넣는다. 안 그러면 명단이 바뀌어도 다시 안 그린다
+  const who = (ctx.folk ?? []).map((f) => `${f.id}@${f.archetypeId}`).join(',');
+  return `town:${ctx.eraIndex}:${levels}:${who}`;
 }
 
 export function buildTownMap(ctx: TownContext): TileMapData {
@@ -149,20 +177,35 @@ export function buildTownMap(ctx: TownContext): TileMapData {
     solid: false,
   });
 
-  // ── 인물 ───────────────────────────────────────────
-  const npcs: MapObject[] = [
-    // 의뢰인은 길바닥에 서 있지 않는다. 회관 안에 상주한다 (§7.6, §10)
-    {
-      id: 'npc-b',
-      type: 'npc',
-      x: 13,
-      y: 23,
-      sprite: 'char.comp.1',
-      voice: { kind: 'companion', id: 'knight' },
-      solid: true,
-    },
-  ];
-  for (const npc of npcs) if (inRect(rect, npc.x, npc.y)) objects.push(npc);
+  /**
+   * 인물 (§7.6).
+   *
+   * 의뢰인은 길바닥에 서 있지 않는다 — 회관 안에 상주한다 (§10).
+   * 관계 대상은 마을에 서 있어야 한다. 다가와 줄 때까지 기다리는 것 말고
+   * **찾아가서 말을 걸 수 있어야** 관계가 자리를 얻는다.
+   */
+  let spot = 0;
+  for (const who of ctx.folk ?? []) {
+    // 마을이 좁아 바깥이거나 이미 막힌 자리는 건너뛰고 다음 자리를 본다
+    while (spot < FOLK_SPOTS.length) {
+      const at = FOLK_SPOTS[spot];
+      spot += 1;
+      if (at === undefined) continue;
+      if (!inRect(rect, at.x, at.y)) continue;
+      if (collision[at.y * W + at.x]) continue;
+
+      objects.push({
+        id: `folk-${who.id}`,
+        type: 'npc',
+        x: at.x,
+        y: at.y,
+        sprite: companionSprite(who.archetypeId),
+        voice: { kind: 'companion', id: who.archetypeId },
+        solid: true,
+      });
+      break;
+    }
+  }
 
   return { id: 'town', width: W, height: H, ground, deco, collision, objects };
 }

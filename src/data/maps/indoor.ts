@@ -14,7 +14,7 @@
 import type { MapObject, Terrain, TileMapData } from '@/types/map';
 import { getBuilding } from '@/data/buildings';
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
-import { CHAR_ROSTER } from '@/data/characters';
+import { companionSprite, patronSprite } from '@/data/sprites';
 import { roomForBuilding } from '@/data/rooms';
 
 const W = 13;
@@ -48,25 +48,11 @@ const PATRON_ERA: Record<string, number> = {
   vell: 3,
 };
 
-function patronSprite(patronId: string): string {
-  return (
-    CHAR_ROSTER.find((s) => s.role === 'patron' && s.bind === patronId)?.spriteId ??
-    'char.patron.bartek'
-  );
-}
-
 export interface IndoorContext {
   buildingId: string;
   eraIndex: number;
   /** 숙소에 상주하는 인물 (§7.4 수락 → 마을에 상주 위치가 생긴다) */
   residents?: { id: string; archetypeId: string }[];
-}
-
-function companionSprite(archetypeId: string): string {
-  return (
-    CHAR_ROSTER.find((s) => s.role === 'companion' && s.bind === archetypeId)?.spriteId ??
-    'char.comp.1'
-  );
 }
 
 export function buildIndoorMap(ctx: IndoorContext): TileMapData {

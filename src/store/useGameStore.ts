@@ -1010,6 +1010,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       state: {
         ...state,
+        // 동행은 한 번 나갈 때마다 고른다 (§11). 돌아오면 풀린다 —
+        // 안 풀면 데려갔던 사람만 마을에서 영영 사라진 것처럼 보인다
+        escort: null,
         world: {
           ...state.world,
           currentMap: 'town',
@@ -1160,14 +1163,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
             restUntilTurn: state.world.turn + DOWNED.restWeeks,
           },
           resources: { ...state.resources, gold },
+          // 쓰러져 실려 와도 동행은 끝난다
+          escort: null,
           world: {
-          ...state.world,
-          currentMap: 'town',
-          heroTile: { ...START_HERO_TILE },
-          clearedNodes: [],
+            ...state.world,
+            currentMap: 'town',
+            heroTile: { ...START_HERO_TILE },
+            clearedNodes: [],
+          },
         },
-        },
-            });
+      });
       void get().save('map-change');
     }
   },
