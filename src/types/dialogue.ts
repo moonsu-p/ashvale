@@ -45,6 +45,8 @@ export interface DialogueOption {
     patronId?: string;
     /** 의뢰 완료를 보고한다 */
     questReport?: string;
+    /** 경쟁 사건에서 누구 편을 들었는가 (§7.5) */
+    rival?: { firstId: string; secondId: string; side: 'first' | 'second' | 'neutral' };
   };
 }
 
@@ -52,6 +54,8 @@ export interface DialogueScript {
   /** 이름표에 들어갈 이름 */
   speakerName: string;
   portrait: PortraitRef;
+  /** 두 사람이 동시에 나오는 사건에서 오른쪽에 서는 인물 (§7.5) */
+  secondPortrait?: PortraitRef;
   /** 한 줄씩 넘긴다 */
   lines: string[];
   /** 마지막 줄 뒤에 뜬다. 없으면 그대로 닫힌다 */

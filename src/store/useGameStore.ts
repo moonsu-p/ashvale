@@ -40,6 +40,9 @@ import { shiftFaction } from '@/systems/factions';
 import { buildConfessionScript, buildEventScript } from '@/systems/dialogue';
 import { answerConfession, shouldConfess } from '@/systems/confession';
 import { addCompanion } from '@/systems/roster';
+import { buildRivalScript, rivalDeltas } from '@/systems/rivals';
+import { RIVAL_AFFINITY } from '@/data/content/rival-events';
+import type { RivalPick } from '@/systems/rivals';
 import { getQuest } from '@/data/quests';
 import {
   buyCost,
@@ -129,6 +132,16 @@ interface GameStore {
   finishTyping: () => void;
   chooseDialogue: (optionId: string) => void;
   closeDialogue: () => void;
+
+  /** 대기 중인 경쟁 사건 (§7.5). 다음 마을 진입 때 열린다 */
+  rival: RivalPick | null;
+  /**
+   * 이름을 아직 안 붙인 인물. 만나기 전에 먼저 물어본다 (§7.1) —
+   * 이름 없는 사람과 대화가 시작되면 누구와 말하는지 알 수가 없다.
+   */
+  naming: string | null;
+  askName: (companionId: string) => void;
+  nameCompanion: (name: string) => void;
 
   /** 지금 걸어오고 있는 인물 id (§7.3). 스프라이트가 도착하면 대화가 열린다 */
   approaching: string | null;
@@ -278,6 +291,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   menu: null,
   approaching: null,
   approachIgnores: {},
+  rival: null,
+  naming: null,
   tradedThisWeek: 0,
 
   async boot() {
@@ -550,6 +565,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
+      // 경쟁 사건 — 편든 쪽 +6, 반대쪽 −4 / 중립은 양쪽 +1 (§7.5)
+      if (effect.rival !== undefined) {
+        const { firstId, secondId, side } = effect.rival;
+        const d = rivalDeltas(side);
+        const a = next.companions[firstId];
+        const b = next.companions[secondId];
+        const companions = { ...next.companions };
+        if (a !== undefined) companions[firstId] = withAffinity(a, d.first);
+        if (b !== undefined) companions[secondId] = withAffinity(b, d.second);
+        next = { ...next, companions };
+        toast.push(
+          side === 'neutral'
+            ? '양쪽 +1'
+            : `${displayName(side === 'first' ? (a ?? b)! : (b ?? a)!)} +${RIVAL_AFFINITY.sided}`,
+        );
+      }
+
       if (effect.factionShift !== undefined) {
         const [faction, delta] = effect.factionShift;
         next = { ...next, factions: shiftFaction(next.factions, faction, delta) };
@@ -578,10 +610,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ dialogue: null });
   },
 
+  askName(companionId) {
+    set({ naming: companionId });
+  },
+
+  nameCompanion(name) {
+    const { state, naming } = get();
+    if (state === null || naming === null) return;
+    const companion = state.companions[naming];
+    if (companion === undefined) return;
+
+    const trimmed = name.trim();
+    set({
+      state: {
+        ...state,
+        companions: {
+          ...state.companions,
+          [naming]: { ...companion, name: trimmed === '' ? displayName(companion) : trimmed },
+        },
+      },
+      naming: null,
+    });
+    void get().save('relationship');
+  },
+
   beginApproach() {
-    const { state, approaching } = get();
+    const { state, approaching, rival } = get();
     if (state === null || approaching !== null) return;
     if (state.world.currentMap !== 'town') return;
+
+    // 경쟁 사건이 먼저다. 두 사람이 같이 와 있다 (§7.5)
+    if (rival !== null) {
+      const script = buildRivalScript(state, rival, state.town.name);
+      set({ rival: null });
+      if (script !== null) {
+        set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+        return;
+      }
+    }
 
     // 대기 중인 인물이 둘 이상이면 호감이 높은 쪽부터 한 명씩 (§7.3)
     const who = nextApproach(state);
@@ -594,6 +660,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state === null || approaching === null) return;
     const companion = state.companions[approaching];
     if (companion === undefined) return;
+
+    // 다가온 사람이 아직 이름이 없으면 먼저 이름부터 묻는다 (§7.1)
+    if (companion.name === '') {
+      set({ naming: companion.id });
+      return;
+    }
 
     // 고백이 먼저다 (§7.4). 벗에 닿으면 인물이 그 말을 하러 온다
     const req = { townName: state.town.name, characterName: companion.name };
@@ -889,7 +961,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state === null) return;
 
     // 1. 1주 소모 (§11). 마을 활동은 시간을 쓰지 않지만 나가는 것은 쓴다
-    const { state: afterWeek } = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+    const weekResult = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+    const afterWeek = weekResult.state;
 
     // 2. 지역 맵 진입
     set({
@@ -906,6 +979,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       explore: null,
       // 주가 넘어갔으니 거래 한도도 새로 찬다
       tradedThisWeek: 0,
+      rival: weekResult.rival ?? get().rival,
     });
     void get().save('map-change');
   },
@@ -1110,7 +1184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (state === null) return;
     const result = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
-    set({ state: result.state, tradedThisWeek: 0 });
+    set({ state: result.state, tradedThisWeek: 0, rival: result.rival ?? get().rival });
 
     if (result.collapsed) {
       // 원장에 붕괴 시점을 남긴다. 이건 불러오기로 지워지지 않는다 (§14)

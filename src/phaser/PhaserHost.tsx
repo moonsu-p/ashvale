@@ -102,6 +102,16 @@ export function PhaserHost() {
             ? Object.values(state.companions).find((c) => c.archetypeId === object.voice?.id)
             : undefined;
 
+        /**
+         * 이름 없는 사람과는 대화를 시작하지 않는다 (§7.1 — 이름은 플레이어가 붙인다).
+         * 먼저 이름을 받고, 그 다음에 말을 건다. 누구와 이야기하는지 모르는 채로
+         * 대사가 흐르면 관계가 붙지 않는다.
+         */
+        if (companion !== undefined && companion.name === '') {
+          store.askName(companion.id);
+          return;
+        }
+
         const req = {
           townName,
           ...(companion !== undefined
@@ -171,6 +181,7 @@ export function PhaserHost() {
         s.regionSelect ||
         s.explore !== null ||
         s.shop ||
+        s.naming !== null ||
         s.menu !== null;
       if (busy !== wasTalking) {
         wasTalking = busy;

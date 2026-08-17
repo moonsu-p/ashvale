@@ -19,6 +19,7 @@ import { appendEntries, makeEntry } from './chronicle';
 import { queueApproaches } from './relationships';
 import { applyEvent, rollEvent } from './worldEvents';
 import { collapse, shouldCollapse } from './collapse';
+import { rollRival, type RivalPick } from './rivals';
 import { COLLAPSE_TEXT as CHRONICLE_TEXT_COLLAPSE } from '@/data/collapse';
 
 export interface WeekInput {
@@ -37,6 +38,8 @@ export interface WeekResult {
   entries: ChronicleEntry[];
   /** 이번 주에 마을이 무너졌는가 (§13) */
   collapsed: boolean;
+  /** 연인이 둘 이상이라 벌어진 경쟁 사건 (§7.5). 다음 마을 진입 때 열린다 */
+  rival: RivalPick | null;
 }
 
 export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResult {
@@ -139,6 +142,14 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
     chronicle: appendEntries(next.chronicle, entries),
   };
 
+  /**
+   * 경쟁 사건 추첨 (§7.5). **주차를 올린 뒤에 뽑는다** —
+   * "8주마다"는 새 주차 기준이다. 4단계에서 뽑으면 아직 지난 주차라
+   * 문턱을 영영 못 넘는다. 실제로 그렇게 짰다가 한 번도 안 열렸다.
+   * 사건 자체는 다음에 마을에 들어설 때 벌어진다.
+   */
+  const rival = rollRival(next, _rng);
+
   // 붕괴 판정. 주차를 올린 뒤에 본다 — 그 주를 끝까지 살아낸 다음이다 (§13)
   let collapsed = false;
   if (shouldCollapse(next)) {
@@ -157,5 +168,5 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
   // ── 8. 자동 저장 ─────────────────────────────────────
   //    부작용이라 여기서 하지 않는다. 부르는 쪽(스토어)이 저장한다.
 
-  return { state: next, entries, collapsed };
+  return { state: next, entries, collapsed, rival };
 }

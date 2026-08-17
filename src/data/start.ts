@@ -10,11 +10,8 @@ import type { ResourceId, StatId, FactionId } from '@/types/game';
 /** 거점 이름 기본값. 이름 짓기 화면이 생기면 거기서 덮어쓴다 */
 export const DEFAULT_TOWN_NAME = '아쉬베일';
 
-/**
- * 주인공 이름 기본값은 빈 문자열이다.
- * 이름은 플레이어가 붙인다. 대신 지어 넣지 않는다.
- */
-export const DEFAULT_HERO_NAME = '';
+/** 주인공 이름 */
+export const DEFAULT_HERO_NAME = '문수';
 
 export const START_HERO = {
   level: 1,

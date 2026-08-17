@@ -17,6 +17,7 @@ import { Toast } from './Toast';
 import { FamineBanner } from './FamineBanner';
 import { Hint } from './Hint';
 import { MarketPanel } from './menu/MarketPanel';
+import { NamingPrompt } from './NamingPrompt';
 
 interface Props {
   prompt: string | null;
@@ -37,6 +38,7 @@ export function FieldBand({ prompt, talking }: Props) {
       <FamineBanner />
       <Hint />
       <MarketPanel />
+      <NamingPrompt />
     </main>
   );
 }
