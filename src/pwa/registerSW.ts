@@ -10,8 +10,9 @@ export function registerSW(): void {
   if (!('serviceWorker' in navigator)) return;
 
   window.addEventListener('load', () => {
-    // base 가 './' 라 배포 경로가 어디든 문서 기준으로 풀린다
-    const url = new URL('sw.js', document.baseURI).href;
+    // base 가 './' 라 배포 경로가 어디든 문서 기준으로 풀린다.
+    // ?v= 가 빌드마다 달라져 새 워커로 인식된다 — 이게 없으면 낡은 캐시가 안 걷힌다
+    const url = new URL(`sw.js?v=${__BUILD_ID__}`, document.baseURI).href;
     void navigator.serviceWorker.register(url, { scope: './' }).catch(() => {
       // 등록 실패는 치명적이지 않다. 온라인에서는 그대로 돌아간다
     });

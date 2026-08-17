@@ -8,7 +8,17 @@
  *  - 외부 요청을 하지 않는다. 같은 출처가 아닌 요청은 그냥 통과시킨다 (§14 비통신).
  */
 
-const CACHE_VERSION = 'ashvale-v2';
+/**
+ * 캐시 이름.
+ *
+ * 등록 주소의 `?v=` 에서 가져온다 (registerSW 가 붙인다). 빌드마다 달라지므로
+ * 배포할 때마다 새 캐시가 생기고, activate 에서 옛 캐시를 지운다.
+ *
+ * **이걸 문자열로 박아 두면 안 된다.** 그러면 한 번 캐시된 번들이 영원히
+ * 남아서, 새로 고쳐도 폰에는 옛 화면이 계속 뜬다.
+ */
+const BUILD = new URL(self.location.href).searchParams.get('v') ?? 'dev';
+const CACHE_VERSION = `ashvale-${BUILD}`;
 
 /** 설치할 때 미리 담아 둘 것. 해시가 붙는 번들 파일은 실행 중에 담는다 */
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
