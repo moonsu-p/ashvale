@@ -86,6 +86,8 @@ export function collapse(state: GameState, rng: Rng): CollapseResult {
         skillPoints: state.hero.skillPoints + refunded,
         relics: kept,
         hp: state.hero.maxHp,
+        // 무너지고 다시 세우는 자리에서까지 금족을 끌고 가지 않는다
+        restUntilTurn: 0,
       },
       town: { ...state.town, buildings },
       resources: { wood: REBUILD_GRANT.wood, stone: 0, food: REBUILD_GRANT.food, gold: 0 },

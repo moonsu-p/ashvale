@@ -43,6 +43,7 @@ export function newGame(input: NewGameInput): GameState {
       skillPoints: START_HERO.skillPoints,
       skills: {},
       relics: [],
+      restUntilTurn: 0,
     },
 
     town: {

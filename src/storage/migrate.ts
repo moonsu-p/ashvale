@@ -27,6 +27,12 @@ const MIGRATIONS: Record<number, Migration> = {
       counters: { ...counters, famineWeeks: 0 },
     };
   },
+
+  /** 2 -> 3: hero.restUntilTurn 추가 (§11 쓰러진 뒤 2주) */
+  2: (raw) => {
+    const hero = isRecord(raw['hero']) ? raw['hero'] : {};
+    return { ...raw, schemaVersion: 3, hero: { ...hero, restUntilTurn: 0 } };
+  },
 };
 
 export type MigrateResult =

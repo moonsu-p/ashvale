@@ -74,6 +74,13 @@ export interface HeroState {
   skillPoints: number;
   skills: Record<string, number>;
   relics: string[];
+  /**
+   * 이 주차까지는 지역에 나갈 수 없다 (§11 — HP 0 이면 2주 탐사 불가).
+   *
+   * §4 에 없던 칸이다. 쓰러져도 금화만 조금 잃고 바로 다시 나갈 수 있으면
+   * 탐사에 위험이 없다. CompanionRecord.injuredUntilTurn 과 같은 결로 둔다.
+   */
+  restUntilTurn: number;
 }
 
 export interface TownState {
@@ -111,7 +118,7 @@ export interface Counters {
 }
 
 export interface GameState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   createdAt: number;
 
   hero: HeroState;

@@ -5,7 +5,12 @@
  */
 
 import type { GameState, ResourceId } from '@/types/game';
-import { BUILDINGS, FOOD_PER_POP, SHRINE_HEAL_PER_LEVEL } from '@/data/buildings';
+import {
+  BUILDINGS,
+  FOOD_PER_POP,
+  REST_HEAL_PER_WEEK,
+  SHRINE_HEAL_PER_LEVEL,
+} from '@/data/buildings';
 import { SEASON_YIELD, type SeasonId } from '@/data/seasons';
 import { townPower } from './eras';
 
@@ -78,11 +83,17 @@ export function applyProduction(
   return out;
 }
 
-/** 회복 — 주 종료 3단계. 신전 레벨만큼 HP 가 오른다 (§10) */
+/**
+ * 회복 — 주 종료 3단계.
+ *
+ * 한 주 쉬면 기본만큼 돌아오고, 신전이 있으면 레벨만큼 **더** 얹는다 (§10).
+ * 굶는 중에는 몸이 낫지 않는다 — 식량이 마이너스면 회복이 없다.
+ */
 export function computeHeal(state: GameState): number {
-  const shrine = state.town.buildings['shrine'] ?? 0;
-  if (shrine <= 0) return 0;
   const missing = state.hero.maxHp - state.hero.hp;
   if (missing <= 0) return 0;
-  return Math.min(missing, shrine * SHRINE_HEAL_PER_LEVEL);
+  if (state.resources.food < 0) return 0;
+
+  const shrine = state.town.buildings['shrine'] ?? 0;
+  return Math.min(missing, REST_HEAL_PER_WEEK + shrine * SHRINE_HEAL_PER_LEVEL);
 }

@@ -22,7 +22,7 @@ for (const id of ids) {
 
   // 입구에서 막히지 않은 칸을 전부 훑는다
   const seen = new Set<string>([`${REGION_ENTRY.x},${REGION_ENTRY.y}`]);
-  const queue = [{ x: REGION_ENTRY.x, y: REGION_ENTRY.y }];
+  const queue: { x: number; y: number }[] = [{ x: REGION_ENTRY.x, y: REGION_ENTRY.y }];
   while (queue.length > 0) {
     const cur = queue.shift();
     if (cur === undefined) break;

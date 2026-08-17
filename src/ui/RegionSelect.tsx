@@ -5,6 +5,7 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { REGIONS, regionName } from '@/data/regions';
+import { computeHeal } from '@/systems/economy';
 import { TOUCH_MIN } from '@/data/layout';
 import { eraName } from '@/data/eras';
 import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
@@ -64,14 +65,28 @@ export function RegionSelect() {
   const state = useGameStore((s) => s.state);
   const close = useGameStore((s) => s.closeRegionSelect);
   const enter = useGameStore((s) => s.enterRegion);
+  const rest = useGameStore((s) => s.restWeek);
 
   if (!open || state === null) return null;
+
+  // 쓰러진 뒤에는 2주 나갈 수 없다 (§11)
+  const restLeft = Math.max(0, state.hero.restUntilTurn - state.world.turn);
+  const resting = restLeft > 0;
+  const heal = computeHeal(state);
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-ink/80 p-3">
       <div className="flex min-h-0 flex-1 flex-col rounded border border-stoneDark bg-paper p-3 text-ink">
         <h2 className="text-[15px] font-medium">지역 탐사</h2>
-        <p className="mb-2 text-[11px] text-inkSoft">나가면 1주가 지난다.</p>
+        <p className="mb-2 text-[11px] text-inkSoft">
+          나가든 쉬든 1주가 지난다.
+        </p>
+
+        {resting && (
+          <p className="mb-2 rounded border border-blood bg-paperDim px-2 py-1 text-[11px] text-blood">
+            아직 몸이 성치 않다. {restLeft}주 더 쉬어야 나갈 수 있다.
+          </p>
+        )}
 
         <EscortPicker />
 
@@ -83,7 +98,7 @@ export function RegionSelect() {
               <li key={region.id}>
                 <button
                   type="button"
-                  disabled={locked}
+                  disabled={locked || resting}
                   onClick={() => enter(region.id)}
                   style={{ minHeight: TOUCH_MIN }}
                   className="w-full rounded border border-stoneDark bg-paperDim px-3 py-2 text-left disabled:opacity-50"
@@ -104,6 +119,21 @@ export function RegionSelect() {
             );
           })}
         </ul>
+
+        {/* 나가는 것 말고도 한 주를 쓰는 길이 있어야 한다. 쉬면 기력이 돌아온다 */}
+        <button
+          type="button"
+          onClick={rest}
+          style={{ minHeight: TOUCH_MIN }}
+          className="mt-2 rounded border border-stoneDark bg-paperDim px-3 text-left"
+        >
+          <div className="flex items-baseline justify-between">
+            <span className="text-[13px] font-medium">이번 주는 쉰다</span>
+            <span className="text-[11px] text-inkSoft">
+              기력 {state.hero.hp}/{state.hero.maxHp} · 회복 +{heal}
+            </span>
+          </div>
+        </button>
 
         <button
           type="button"

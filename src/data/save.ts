@@ -8,8 +8,9 @@
  *
  * 2 — counters.famineWeeks 추가. 붕괴 판정(§13)이 "식량 0 미만 4주 연속"을
  *     세는데 담을 자리가 없었다.
+ * 3 — hero.restUntilTurn 추가. 쓰러진 뒤 2주 탐사 불가(§11)를 담을 자리.
  */
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 /** 원장 스키마 판. 세이브와 따로 움직인다 */
 export const LEDGER_VERSION = 1 as const;

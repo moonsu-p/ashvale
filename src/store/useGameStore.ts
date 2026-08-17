@@ -217,6 +217,8 @@ interface GameStore {
   raiseBuilding: (buildingId: string) => void;
   /** 주 종료. §3 의 8단계를 돈다 */
   endWeek: () => void;
+  /** 이번 주는 나가지 않고 쉰다. 한 주가 지나고 기력이 돌아온다 */
+  restWeek: () => void;
   /** 붕괴 직전, 유물을 넘겨 시간을 산다. 한 번뿐이다 (§13) */
   sellRelicForTime: () => void;
 
@@ -960,6 +962,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (state === null) return;
 
+    // 쓰러진 뒤 쉬는 동안은 나갈 수 없다 (§11). UI 만 막아 두지 않는다
+    if (state.world.turn < state.hero.restUntilTurn) return;
+
     // 1. 1주 소모 (§11). 마을 활동은 시간을 쓰지 않지만 나가는 것은 쓴다
     const weekResult = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
     const afterWeek = weekResult.state;
@@ -1127,7 +1132,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         state: {
           ...state,
-          hero: { ...state.hero, hp: DOWNED.hpOnReturn },
+          hero: {
+            ...state.hero,
+            hp: DOWNED.hpOnReturn,
+            // 2주는 나갈 수 없다 (§11). 이게 없으면 쓰러져도 곧장 다시 나가진다
+            restUntilTurn: state.world.turn + DOWNED.restWeeks,
+          },
           resources: { ...state.resources, gold },
           world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
         },
@@ -1178,6 +1188,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       error: null,
     });
     void get().save('build');
+  },
+
+  /**
+   * 이번 주를 쉬는 데 쓴다.
+   *
+   * 주를 넘기는 길이 탐사뿐이면 쓰러진 뒤 2주 금족이 그대로 **막다른 길**이 된다.
+   * 나가지도 못하고 주도 안 가니 영영 그 자리다. 쉬는 쪽도 한 주를 쓴다 —
+   * 공짜가 아니라 탐사와 맞바꾸는 선택이다.
+   */
+  restWeek() {
+    const { state } = get();
+    if (state === null) return;
+    const before = state.hero.hp;
+    get().endWeek();
+    const after = get().state?.hero.hp ?? before;
+    set({ regionSelect: false });
+    set({ toast: after > before ? `한 주를 쉬었다 · 기력 +${after - before}` : '한 주를 쉬었다' });
   },
 
   endWeek() {
