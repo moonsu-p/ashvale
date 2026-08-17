@@ -37,6 +37,11 @@ export const TERRAIN_LOOK: Record<Terrain, TerrainLook> = {
   overgrown: { base: 'grassDark', detail: 'grass' },
 
   // 지역 바닥. 무늬 없이 색만으로 결을 가른다 (base === detail 이면 무늬를 그리지 않는다)
+  // 실내
+  floor: { base: 'woodLight', detail: 'wood' },
+  rug: { base: 'clothWarm', detail: 'roofRed' },
+  counter: { base: 'wood', detail: 'woodLight' },
+
   sand: { base: 'dirtLight', detail: 'dirtLight' },
   bog: { base: 'soilDark', detail: 'soilDark' },
   scree: { base: 'stoneDark', detail: 'stoneDark' },

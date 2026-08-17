@@ -151,15 +151,7 @@ export function buildTownMap(ctx: TownContext): TileMapData {
 
   // ── 인물 ───────────────────────────────────────────
   const npcs: MapObject[] = [
-    {
-      id: 'npc-a',
-      type: 'npc',
-      x: 7,
-      y: 20,
-      sprite: 'char.patron.bartek',
-      voice: { kind: 'patron', id: 'bartek' },
-      solid: true,
-    },
+    // 의뢰인은 길바닥에 서 있지 않는다. 회관 안에 상주한다 (§7.6, §10)
     {
       id: 'npc-b',
       type: 'npc',

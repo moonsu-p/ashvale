@@ -18,6 +18,7 @@ import { getBuilding } from '@/data/buildings';
 import { CHRONICLE_TEXT } from '@/data/chronicle';
 import { DOWNED, getRegion, regionIdFromMap, regionMapId, regionName } from '@/data/regions';
 import { REGION_ENTRY } from '@/data/maps/region';
+import { INDOOR_ENTRY, buildingIdFromIndoor, indoorMapId } from '@/data/maps/indoor';
 import { REGION_TEXT } from '@/data/content/region-text';
 import { START_HERO_TILE } from '@/data/start';
 import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
@@ -182,6 +183,10 @@ interface GameStore {
   enterRegion: (regionId: string) => void;
   /** 마을로 돌아온다. 추가 시간 소모 없음 */
   leaveRegion: () => void;
+  /** 건물 안으로 들어간다 (§6). 시간을 쓰지 않는다 */
+  enterIndoor: (buildingId: string) => void;
+  /** 밖으로 나온다. 들어갔던 문 앞에 선다 */
+  leaveIndoor: () => void;
   /** 노드를 밟았다 → 판정 */
   stepNode: (nodeId: string) => void;
   closeExplore: () => void;
@@ -909,6 +914,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
       clearedNodes: [],
       explore: null,
+    });
+    void get().save('map-change');
+  },
+
+  enterIndoor(buildingId) {
+    const { state } = get();
+    if (state === null) return;
+    set({
+      state: {
+        ...state,
+        world: {
+          ...state.world,
+          currentMap: indoorMapId(buildingId),
+          heroTile: { ...INDOOR_ENTRY },
+        },
+      },
+    });
+    void get().save('map-change');
+  },
+
+  leaveIndoor() {
+    const { state } = get();
+    if (state === null) return;
+
+    // 들어갔던 건물의 문 앞으로 나온다
+    const buildingId = buildingIdFromIndoor(state.world.currentMap);
+    const town = loadMap({ mapId: 'town', eraIndex: state.world.eraIndex, buildings: state.town.buildings });
+    const door = town.objects.find((o) => o.building === buildingId);
+    const tile = door === undefined ? START_HERO_TILE : { x: door.x, y: door.y, dir: 'down' as const };
+
+    set({
+      state: { ...state, world: { ...state.world, currentMap: 'town', heroTile: tile } },
     });
     void get().save('map-change');
   },

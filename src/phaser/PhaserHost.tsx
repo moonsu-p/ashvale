@@ -15,6 +15,7 @@ import type { GameState } from '@/types/game';
 import { buildPatronScript, buildScript, type PatronContext } from '@/systems/dialogue';
 import { toneFor } from '@/systems/relationships';
 import { activeQuest, isComplete, offerFor } from '@/systems/quests';
+import { buildingIdFromIndoor, hasIndoor } from '@/data/maps/indoor';
 import { FieldScene } from './FieldScene';
 
 /** 이 의뢰인이 지금 무슨 말을 할 상황인가 (§7.6) */
@@ -53,10 +54,18 @@ export function PhaserHost() {
       onAction: (object) => {
         if (object === null) return;
         const store = useGameStore.getState();
+        const state = store.state;
+        const indoorNow = buildingIdFromIndoor(state?.world.currentMap ?? '') !== null;
 
-        // 건물 부지 — 건설·증축 패널 (§10)
+        /**
+         * 건물 (§6, §10).
+         * 안 지었으면 건설 패널. 지었고 실내가 있으면 들어간다 —
+         * 증축은 안에 있는 탁자에서 한다. 실내가 없으면 밖에서 바로 증축.
+         */
         if (object.building !== undefined) {
-          store.openBuildPanel(object.building);
+          const level = state?.town.buildings[object.building] ?? 0;
+          if (!indoorNow && hasIndoor(object.building, level)) store.enterIndoor(object.building);
+          else store.openBuildPanel(object.building);
           return;
         }
 
@@ -70,15 +79,15 @@ export function PhaserHost() {
           return;
         }
 
-        // 길목 — 마을에서는 지역 선택으로, 지역에서는 마을 복귀로 (§6, §11)
+        // 길목 — 실내면 밖으로, 지역이면 마을로, 마을이면 지역 선택 (§6, §11)
         if (object.type === 'gateway') {
-          if (object.target === 'town') store.leaveRegion();
+          if (indoorNow) store.leaveIndoor();
+          else if (object.target === 'town') store.leaveRegion();
           else store.openRegionSelect();
           return;
         }
 
         if (object.voice === undefined) return;
-        const state = store.state;
         const townName = state?.town.name ?? '';
 
         // 말투는 호감 단계를 따라간다 (§15). 명단에서 그 원형의 인물을 찾는다

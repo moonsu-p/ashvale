@@ -16,6 +16,7 @@ import type { MapObject, TileMapData } from '@/types/map';
 import { inBounds, tileIndex } from '@/types/map';
 import { buildTownMap, townKey, type TownContext } from '@/data/maps/town';
 import { buildRegionMap } from '@/data/maps/region';
+import { buildIndoorMap, buildingIdFromIndoor } from '@/data/maps/indoor';
 import { regionIdFromMap } from '@/data/regions';
 
 /**
@@ -31,6 +32,8 @@ const cache = new Map<string, TileMapData>();
 /** 같은 열쇠면 같은 맵이다. 씬이 다시 그릴지 판단할 때도 쓴다 */
 export function mapKey(ctx: MapContext): string {
   if (ctx.mapId === 'town') return townKey(ctx);
+  // 실내는 시대에 따라 서 있는 의뢰인이 달라진다
+  if (buildingIdFromIndoor(ctx.mapId) !== null) return `${ctx.mapId}:${ctx.eraIndex}`;
   return ctx.mapId;
 }
 
@@ -40,12 +43,15 @@ export function loadMap(ctx: MapContext): TileMapData {
   if (hit !== undefined) return hit;
 
   const regionId = regionIdFromMap(ctx.mapId);
+  const indoorOf = buildingIdFromIndoor(ctx.mapId);
 
   let map: TileMapData;
   if (ctx.mapId === 'town') {
     map = buildTownMap(ctx);
   } else if (regionId !== null) {
     map = buildRegionMap(regionId);
+  } else if (indoorOf !== null) {
+    map = buildIndoorMap({ buildingId: indoorOf, eraIndex: ctx.eraIndex });
   } else {
     throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
   }

@@ -37,7 +37,11 @@ export type Terrain =
   | 'sand'
   | 'bog'
   | 'scree'
-  | 'riftGround';
+  | 'riftGround'
+  // 실내 (§6, §10)
+  | 'floor'
+  | 'rug'
+  | 'counter';
 
 /** 오브젝트 종류 (§6). 상호작용 문구가 여기서 갈린다 (§5) */
 export type MapObjectType = 'door' | 'npc' | 'node' | 'gateway';

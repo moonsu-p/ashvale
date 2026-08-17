@@ -8,6 +8,7 @@
 import type { Dir } from '@/types/game';
 import type { MapObject, TileMapData } from '@/types/map';
 import { isBlocked, objectAt } from './map';
+import { buildingIdFromIndoor, hasIndoor } from '@/data/maps/indoor';
 
 export interface HeroTile {
   x: number;
@@ -107,11 +108,23 @@ export interface Interaction {
   label: string;
 }
 
-/** 건물 부지면 문구가 갈린다 — 아직 없으면 건설, 있으면 증축 (§10) */
-function labelFor(object: MapObject, buildings?: Record<string, number>): string {
+/**
+ * 건물 앞 문구 (§6, §10).
+ *
+ * 아직 안 지었으면 건설. 지었고 실내가 있으면 **들어가기** —
+ * 증축은 안에 들어가서 한다. 실내가 없는 헛간 종류는 밖에서 증축한다.
+ */
+function labelFor(
+  object: MapObject,
+  buildings: Record<string, number> | undefined,
+  indoors: boolean,
+): string {
   if (object.building !== undefined) {
     const level = buildings?.[object.building] ?? 0;
-    return level === 0 ? '건설' : '증축';
+    if (level === 0) return '건설';
+    // 이미 안에 들어와 있으면 더 들어갈 데가 없다. 여기서는 증축한다
+    if (indoors) return '증축';
+    return hasIndoor(object.building, level) ? '들어가기' : '증축';
   }
   return PROMPT[object.type];
 }
@@ -127,10 +140,12 @@ export function interactionAt(
   hero: HeroTile,
   buildings?: Record<string, number>,
 ): Interaction | null {
+  const indoors = buildingIdFromIndoor(map.id) !== null;
+
   const front = facingTile(hero);
   const faced = objectAt(map, front.x, front.y);
   if (faced !== undefined) {
-    return { object: faced, label: labelFor(faced, buildings) };
+    return { object: faced, label: labelFor(faced, buildings, indoors) };
   }
 
   const under = objectAt(map, hero.x, hero.y);
@@ -138,7 +153,7 @@ export function interactionAt(
     under !== undefined &&
     (under.type === 'door' || under.type === 'gateway' || under.building !== undefined)
   ) {
-    return { object: under, label: labelFor(under, buildings) };
+    return { object: under, label: labelFor(under, buildings, indoors) };
   }
 
   return null;
