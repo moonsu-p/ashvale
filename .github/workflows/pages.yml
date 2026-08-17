@@ -37,7 +37,11 @@ jobs:
       # 타입 검사까지 통과해야 배포된다 (npm run build 안에 들어 있다)
       - run: npm run build
 
+      # enablement: 저장소에 Pages 가 꺼져 있으면 여기서 켠다.
+      # 없으면 설정에서 손으로 켜기 전까지 "Get Pages site failed" 로 죽는다
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
