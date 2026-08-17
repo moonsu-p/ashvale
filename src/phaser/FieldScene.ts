@@ -26,6 +26,7 @@ import {
   drawLootMarker,
   drawSpentMarker,
   drawSpotMarker,
+  drawEscortMarker,
 } from '@/render/markers';
 import { readInput } from './inputBus';
 import { play } from '@/audio/sfx';
@@ -182,6 +183,8 @@ export class FieldScene extends Phaser.Scene {
         name: displayName(c),
       })),
       // 마을에 서 있을 인물 (§7.6). 동행 중인 사람과 숙소 거주자는 빠진다
+      // 동행 노드는 데려갔을 때만 생긴다 (§11)
+      escorted: state.escort !== null,
       folk: townFolk(state).map((c) => ({
         id: c.id,
         archetypeId: c.archetypeId,
@@ -269,6 +272,7 @@ export class FieldScene extends Phaser.Scene {
     this.ensureMarkerTexture('marker:event', drawEventMarker);
     this.ensureMarkerTexture('marker:spent', drawSpentMarker);
     this.ensureMarkerTexture('marker:spot', drawSpotMarker);
+    this.ensureMarkerTexture('marker:escort', drawEscortMarker);
 
     /**
      * 실내에서 일을 보는 자리 (§10).
@@ -293,7 +297,12 @@ export class FieldScene extends Phaser.Scene {
 
     for (const obj of map.objects) {
       if (obj.nodeKind === undefined) continue;
-      const key = obj.nodeKind === 'loot' ? 'marker:loot' : 'marker:event';
+      const key =
+        obj.nodeKind === 'loot'
+          ? 'marker:loot'
+          : obj.nodeKind === 'escort'
+            ? 'marker:escort'
+            : 'marker:event';
       const sprite = this.add.image(worldX(obj.x), worldY(obj.y), key);
       sprite.setOrigin(0.5, 1);
       sprite.setDepth(worldY(obj.y) - 1);

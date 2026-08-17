@@ -15,6 +15,7 @@ import { GRADE_TABLE, XP_PER_DIFFICULTY, type RegionDef } from '@/data/regions';
 import { TRACKING } from '@/data/skills';
 import type { Rng } from './rng';
 import { relicBonus } from './relics';
+import { escortBonus, escortOf } from './escort';
 
 const STAT_LABEL = {
   might: '힘',
@@ -65,7 +66,9 @@ export function rollExplore(state: GameState, region: RegionDef, rng: Rng): Expl
   const library = state.town.buildings['library'] ?? 0;
   push(steps, '서고', Math.floor(library / 2));
 
-  // 동행 보정은 관계 시스템이 붙을 때 이 자리에 들어온다 (§11 동행)
+  // 동행 보정 (§7.2 표, §11). 원형마다 다르고, 통찰 보정은 통찰 지역에서만 붙는다
+  const escort = escortBonus(escortOf(state), region.stat);
+  push(steps, '동행', escort.roll);
 
   push(steps, '유물', bonus.roll);
   push(steps, '첨탑', state.town.buildings['spire'] ?? 0);
@@ -99,13 +102,15 @@ export function resolveExplore(
 ): ExploreOutcome {
   const table = GRADE_TABLE[roll.grade];
   const bonus = relicBonus(state);
+  const escort = escortBonus(escortOf(state), region.stat);
 
   const loot: Partial<Record<ResourceId, number>> = {};
   if (table.loot > 0) {
     for (const [key, range] of Object.entries(region.loot)) {
       const [min, max] = range;
       const base = rng.int(min, max);
-      const scaled = base * table.loot * (1 + bonus.lootPercent / 100);
+      const scaled =
+        base * table.loot * (1 + (bonus.lootPercent + escort.lootPercent) / 100);
       const amount = Math.round(scaled);
       if (amount > 0) loot[key as ResourceId] = amount;
     }
@@ -117,8 +122,19 @@ export function resolveExplore(
   if (roll.grade === 'failure') hpLoss = Math.floor(region.risk / 2);
   if (roll.grade === 'crisis') hpLoss = region.risk;
 
+  /**
+   * 동행자가 대신 맞아 준다 (§7.2).
+   * 기사는 위기에서만, 약초사는 실패·위기 모두. 둘 다 데려갈 수는 없으니
+   * 겹칠 일은 없지만 더해서 100% 를 넘지 않게 자른다.
+   */
+  const cut = Math.min(
+    100,
+    escort.anyHpPercent + (roll.grade === 'crisis' ? escort.crisisHpPercent : 0),
+  );
+  if (cut > 0) hpLoss = Math.round(hpLoss * (1 - cut / 100));
+
   // 별의 균열은 유물이 두 배로 나온다
-  const chance = table.relic * (region.doubleRelic === true ? 2 : 1);
+  const chance = table.relic * (region.doubleRelic === true ? 2 : 1) + escort.relicPoints;
   const relicId = chance > 0 && rng.chance(chance) ? relicPicker(rng) : null;
 
   return { roll, loot, xp, hpLoss, relicId };

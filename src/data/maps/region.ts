@@ -38,7 +38,13 @@ const LOOK: Record<string, RegionLook> = {
 
 const FALLBACK: RegionLook = { floor: 'grass', accent: 'grassTuft', block: 'tree' };
 
-export function buildRegionMap(regionId: string): TileMapData {
+/**
+ * 지역 맵을 세운다.
+ *
+ * `escort` 가 true 면 **동행 노드**를 하나 더 놓는다 (§11 — 동행자가 있을 때만
+ * 나타난다). 전용 서술과 호감이 붙는 자리다. 빼먹고 있었다.
+ */
+export function buildRegionMap(regionId: string, escort = false): TileMapData {
   const size = W * H;
   const look = LOOK[regionId] ?? FALLBACK;
 
@@ -76,8 +82,10 @@ export function buildRegionMap(regionId: string): TileMapData {
    * 전리품 2~3 + 사건 1 (§11). 무작위로 뿌리면 한쪽에 몰려서
    * 지도의 절반이 빈 들판이 된다. 세로로 구간을 나눠 하나씩 놓는다.
    */
-  const total = rng.int(NODE_COUNT.min, NODE_COUNT.max);
-  const lootCount = total - 1;
+  // 전리품 2~3 · 사건 1 · 동행 0~1 (§11)
+  const base = rng.int(NODE_COUNT.min, NODE_COUNT.max);
+  const total = escort ? base + 1 : base;
+  const lootCount = base - 1;
   const band = Math.floor((H - 4) / total);
 
   const spots: { x: number; y: number }[] = [];
@@ -133,7 +141,8 @@ export function buildRegionMap(regionId: string): TileMapData {
       y: spot.y,
       // 밟으면 판정이다 (§11). 막지 않는다
       solid: false,
-      nodeKind: i < lootCount ? 'loot' : 'event',
+      // 전리품 → 사건 → 동행 순. 동행 노드는 데려갔을 때만 만들어진다
+      nodeKind: i < lootCount ? 'loot' : i < base ? 'event' : 'escort',
     });
   });
 

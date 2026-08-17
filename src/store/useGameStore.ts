@@ -24,6 +24,7 @@ import { START_HERO_TILE } from '@/data/start';
 import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
 import { loadMap } from '@/systems/map';
 import { rescueTile } from '@/systems/movement';
+import { escortOf } from '@/systems/escort';
 import {
   gainXp,
   makeOffering,
@@ -1126,9 +1127,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const roll = rollExplore(state, region, rng);
     const outcome = resolveExplore(state, region, roll, rng, (r) => rollRelic(state, r)?.id ?? null);
 
-    // 서술은 콘텐츠에서 가져온다. 새로 쓰지 않는다 (§11)
-    const pool = REGION_TEXT[regionId]?.lines[roll.grade] ?? [];
-    const narration = applyToken(rng.pick(pool) ?? '', '{거점}', state.town.name);
+    /**
+     * 서술은 콘텐츠에서 가져온다. 새로 쓰지 않는다 (§11).
+     *
+     * 동행 노드는 **전용 문장**을 쓴다 — region-text.ts 의 escort 24문장이
+     * 그동안 한 번도 화면에 안 나왔다. 그 자리가 없었기 때문이다.
+     */
+    const map = loadMap({
+      mapId: state.world.currentMap,
+      eraIndex: state.world.eraIndex,
+      buildings: state.town.buildings,
+      escorted: state.escort !== null,
+    });
+    const node = map.objects.find((o) => o.id === nodeId);
+    const escortNode = node?.nodeKind === 'escort';
+
+    const withMe = escortOf(state);
+    const text = REGION_TEXT[regionId];
+    const raw =
+      escortNode && withMe !== null
+        ? (text?.escort[roll.grade] ?? '')
+        : (rng.pick(text?.lines[roll.grade] ?? []) ?? '');
+    const narration = applyToken(
+      applyToken(raw, '{거점}', state.town.name),
+      '{동료}',
+      withMe === null ? '' : displayName(withMe),
+    );
 
     // 전리품·경험치·피해
     let next: GameState = { ...state, resources: { ...state.resources } };

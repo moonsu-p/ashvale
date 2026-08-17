@@ -27,6 +27,12 @@ export interface MapContext extends TownContext {
   mapId: string;
   /** 숙소에 서 있을 인물 (§7.4). 실내 맵에서만 쓴다 */
   residents?: { id: string; archetypeId: string; name: string }[];
+  /**
+   * 지금 누군가를 데려왔는가 (§11).
+   * 동행 노드는 데려갔을 때만 나타나므로 맵 열쇠에도 들어가야 한다 —
+   * 안 그러면 혼자 갔던 지도가 캐시에서 그대로 나온다.
+   */
+  escorted?: boolean;
 }
 
 const cache = new Map<string, TileMapData>();
@@ -38,6 +44,9 @@ export function mapKey(ctx: MapContext): string {
   if (buildingIdFromIndoor(ctx.mapId) !== null) {
     const who = (ctx.residents ?? []).map((r) => `${r.id}@${r.name}`).join(',');
     return `${ctx.mapId}:${ctx.eraIndex}:${who}`;
+  }
+  if (regionIdFromMap(ctx.mapId) !== null) {
+    return ctx.escorted === true ? `${ctx.mapId}:escort` : ctx.mapId;
   }
   return ctx.mapId;
 }
@@ -54,7 +63,7 @@ export function loadMap(ctx: MapContext): TileMapData {
   if (ctx.mapId === 'town') {
     map = buildTownMap(ctx);
   } else if (regionId !== null) {
-    map = buildRegionMap(regionId);
+    map = buildRegionMap(regionId, ctx.escorted === true);
   } else if (indoorOf !== null) {
     map = buildIndoorMap({
       buildingId: indoorOf,

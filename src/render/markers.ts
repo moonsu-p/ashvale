@@ -133,3 +133,29 @@ export function drawSpotMarker(ctx: CanvasRenderingContext2D): void {
   px(ctx, 12, 2, 1, 5);
   px(ctx, 4, 7, 8, 1);
 }
+
+/**
+ * 동행 노드 표식 (§11).
+ *
+ * 동행자가 있을 때만 나타나는 자리다. 전리품·사건과 한눈에 갈려야 해서
+ * 둘이 나란한 모양으로 그린다.
+ */
+export function drawEscortMarker(ctx: CanvasRenderingContext2D): void {
+  drawRing(ctx, PALETTE.clothWarm);
+
+  // 나란히 선 둘. 키를 다르게 해서 두 사람으로 읽히게
+  ctx.fillStyle = PALETTE.clothCool;
+  px(ctx, 4, 6, 3, 7);
+  ctx.fillStyle = PALETTE.clothWarm;
+  px(ctx, 9, 4, 3, 9);
+
+  // 머리
+  ctx.fillStyle = PALETTE.linen;
+  px(ctx, 4, 4, 3, 2);
+  px(ctx, 9, 2, 3, 2);
+
+  // 발밑 그늘로 바닥에 붙인다
+  ctx.fillStyle = PALETTE.ink;
+  px(ctx, 4, 13, 3, 1);
+  px(ctx, 9, 13, 3, 1);
+}

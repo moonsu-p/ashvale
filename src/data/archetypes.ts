@@ -5,7 +5,24 @@
  * 대사는 content/companion-dialogue.ts 에 있다. 여기서 쓰지 않는다.
  */
 
-import type { FactionId } from '@/types/game';
+import type { FactionId, StatId } from '@/types/game';
+
+/**
+ * 동행 보정 (§7.2 표).
+ *
+ * 지금까지 `escortText` 로 **설명만** 있고 수치가 어디에도 안 붙었다 —
+ * 데려가도 판정이 그대로였다. 여기서 형을 주고 explore 가 읽는다.
+ */
+export type EscortEffect =
+  | { kind: 'roll'; value: number }
+  | { kind: 'statRoll'; stat: StatId; value: number }
+  /** 위기 결과의 기력 손실만 줄인다 */
+  | { kind: 'crisisHp'; percent: number }
+  /** 실패·위기 가리지 않고 기력 손실을 줄인다 */
+  | { kind: 'anyHp'; percent: number }
+  | { kind: 'loot'; percent: number }
+  /** 유물 발견 확률에 더한다. 0.03 = +3%p */
+  | { kind: 'relicFind'; points: number };
 
 export interface ArchetypeDef {
   id: string;
@@ -17,8 +34,13 @@ export interface ArchetypeDef {
   taste: string[];
   /** 고향 지역 id (§11). 관계가 깊어지면 이 지역이 열린다 */
   homeRegion: string;
-  /** 동행 보정 설명. 실제 수치 적용은 동행 시스템이 한다 */
+  /** 동행 보정 설명. 화면에 그대로 보인다 */
   escortText: string;
+  /**
+   * 실제로 적용되는 보정. 방랑자는 비운다 —
+   * "무작위(생성 시 고정)" 라 인물마다 다르므로 id 에서 뽑는다.
+   */
+  escort: EscortEffect[];
 }
 
 export const ARCHETYPES: ArchetypeDef[] = [
@@ -29,6 +51,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: ['무구', '석재'],
     homeRegion: 'gate',
     escortText: '위기 결과 HP 손실 −50%',
+    escort: [{ kind: 'crisisHp', percent: 50 }],
   },
   {
     id: 'hunter',
@@ -37,6 +60,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: ['식량', '가죽'],
     homeRegion: 'whisper',
     escortText: '탐사 판정 +2',
+    escort: [{ kind: 'roll', value: 2 }],
   },
   {
     id: 'mage',
@@ -45,6 +69,10 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: ['유물', '서적'],
     homeRegion: 'deep',
     escortText: '통찰 판정 +2, 유물 발견 +3%p',
+    escort: [
+      { kind: 'statRoll', stat: 'insight', value: 2 },
+      { kind: 'relicFind', points: 0.03 },
+    ],
   },
   {
     id: 'herbalist',
@@ -53,6 +81,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: ['씨앗', '식량'],
     homeRegion: 'marsh',
     escortText: '탐사 HP 손실 −50%',
+    escort: [{ kind: 'anyHp', percent: 50 }],
   },
   {
     id: 'envoy',
@@ -61,6 +90,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: ['금화', '예물'],
     homeRegion: 'peaks',
     escortText: '전리품 +20%',
+    escort: [{ kind: 'loot', percent: 20 }],
   },
   {
     id: 'wanderer',
@@ -70,6 +100,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     taste: [],
     homeRegion: 'rift',
     escortText: '무작위 (생성 시 고정)',
+    escort: [],
   },
 ];
 

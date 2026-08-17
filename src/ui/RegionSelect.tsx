@@ -3,15 +3,39 @@
  * 고르면 **1주가 소모된다.** 그 사실을 고르기 전에 보여 준다.
  */
 
+import { useState } from 'react';
 import { useGameStore } from '@/store/useGameStore';
-import { REGIONS, regionName } from '@/data/regions';
+import { REGIONS, regionName, type LootRange } from '@/data/regions';
 import { computeHeal } from '@/systems/economy';
 import { TOUCH_MIN } from '@/data/layout';
 import { eraName } from '@/data/eras';
 import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
 import { displayName } from '@/systems/relationships';
+import { escortOf, escortText } from '@/systems/escort';
 
 const STAT_LABEL = { might: '힘', agility: '민첩', insight: '통찰', will: '의지' } as const;
+
+/**
+ * 무엇을 얻을 수 있는지 (§11 전리품 표).
+ *
+ * 나가기 전에 볼 데가 서고 열람대뿐이었다 — 서고는 성장기 건물이라
+ * 그전에는 어디가 무엇을 주는지 모르고 골라야 했다.
+ * 지역마다 나오는 자원이 다르므로 없는 것은 적지 않는다.
+ */
+function lootText(loot: LootRange): string {
+  const parts: string[] = [];
+  for (const [id, label] of [
+    ['wood', '목'],
+    ['stone', '석'],
+    ['food', '식'],
+    ['gold', '금'],
+  ] as const) {
+    const range = loot[id];
+    if (range === undefined) continue;
+    parts.push(`${label} ${range[0]}~${range[1]}`);
+  }
+  return parts.join(' ');
+}
 
 /**
  * 동행 (§11) — 주당 1명, 동료(40) 이상만.
@@ -56,6 +80,16 @@ function EscortPicker() {
           </button>
         ))}
       </div>
+
+      {/*
+        데려가도 아무 일이 없는 것처럼 보였다 — 보정 수치가 화면 어디에도
+        없었기 때문이다. 고른 사람이 무엇을 해 주는지 여기서 말한다.
+      */}
+      <p className="mt-1 text-[11px] text-grassDark">
+        {state.escort === null
+          ? '혼자 가면 동행 보정도, 동행 자리도 없다.'
+          : `${escortText(escortOf(state))} · 동행 자리가 하나 생긴다`}
+      </p>
     </div>
   );
 }
@@ -66,16 +100,70 @@ export function RegionSelect() {
   const close = useGameStore((s) => s.closeRegionSelect);
   const enter = useGameStore((s) => s.enterRegion);
   const rest = useGameStore((s) => s.restWeek);
+  /**
+   * 혼자 나가려 할 때 한 번 묻는다.
+   *
+   * 동행을 고르는 자리가 목록 위에 있어서, 지역만 누르면 고르지 않은 채
+   * 그대로 나가진다. 한 주가 소모되는 선택이라 되돌릴 수 없다.
+   * **데려갈 사람이 아무도 없으면 묻지 않는다** — 답이 하나뿐인 질문은 방해다.
+   */
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   if (!open || state === null) return null;
 
   // 쓰러진 뒤에는 2주 나갈 수 없다 (§11)
+  const canEscort = Object.values(state.companions).some(
+    (c) =>
+      c.departedTurn === null &&
+      c.affinity >= ESCORT_MIN_AFFINITY &&
+      c.injuredUntilTurn <= state.world.turn,
+  );
+  const ask = (regionId: string) => {
+    if (state.escort === null && canEscort) setConfirming(regionId);
+    else enter(regionId);
+  };
+
   const restLeft = Math.max(0, state.hero.restUntilTurn - state.world.turn);
   const resting = restLeft > 0;
   const heal = computeHeal(state);
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-ink/80 p-3">
+      {confirming !== null && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-ink/70 p-4">
+          <div className="w-full rounded border border-stoneDark bg-paper p-3 text-ink">
+            <p className="text-[13px]">
+              {regionName(confirming)}에 혼자 나가겠는가.
+            </p>
+            <p className="mt-1 text-[11px] text-inkSoft">
+              동행이 있으면 판정 보정이 붙고 동행 자리가 하나 더 생긴다. 한 주는 되돌릴 수 없다.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = confirming;
+                  setConfirming(null);
+                  enter(target);
+                }}
+                style={{ minHeight: TOUCH_MIN }}
+                className="flex-1 rounded border border-stoneDark bg-gold text-[13px] font-medium"
+              >
+                혼자 간다
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(null)}
+                style={{ minHeight: TOUCH_MIN }}
+                className="flex-1 rounded border border-stoneDark bg-paperDim text-[13px]"
+              >
+                동행을 고른다
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1 flex-col rounded border border-stoneDark bg-paper p-3 text-ink">
         <h2 className="text-[15px] font-medium">지역 탐사</h2>
         <p className="mb-2 text-[11px] text-inkSoft">
@@ -99,7 +187,7 @@ export function RegionSelect() {
                 <button
                   type="button"
                   disabled={locked || resting}
-                  onClick={() => enter(region.id)}
+                  onClick={() => ask(region.id)}
                   style={{ minHeight: TOUCH_MIN }}
                   className="w-full rounded border border-stoneDark bg-paperDim px-3 py-2 text-left disabled:opacity-50"
                 >
@@ -112,7 +200,10 @@ export function RegionSelect() {
                     </span>
                   </div>
                   {!locked && (
-                    <div className="text-[11px] text-inkSoft">위험도 {region.risk}</div>
+                    <div className="text-[11px] tabular-nums text-inkSoft">
+                      위험도 {region.risk} · 전리품 {lootText(region.loot)}
+                      {region.doubleRelic === true ? ' · 유물 두 배' : ''}
+                    </div>
                   )}
                 </button>
               </li>
