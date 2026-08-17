@@ -11,6 +11,7 @@ import type { Dir, GameState } from '@/types/game';
 import type { MapObject, TileMapData } from '@/types/map';
 import { CHAR_SHEET, IDLE_FRAME, WALK_FPS, WALK_ORDER, frameIndex } from '@/data/characters';
 import { ASSETS, getAsset } from '@/data/assets';
+import { getBuilding } from '@/data/buildings';
 import { CHAR_TINT_SCALE, PALETTE, SEASON_TINT } from '@/data/palette';
 import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
@@ -62,6 +63,8 @@ export class FieldScene extends Phaser.Scene {
   private wantApproach: string | null = null;
   /** 사건 노드 표식. 밟은 것만 골라 바꾸려고 id 로 들고 있는다 */
   private markerLayer: Phaser.GameObjects.Group | null = null;
+  /** 건물 이름표. 마을에서만 쓴다 */
+  private labelLayer: Phaser.GameObjects.Group | null = null;
   private readonly markers = new Map<string, Phaser.GameObjects.Image>();
   private cleared: string[] = [];
   private readonly reducedMotion =
@@ -190,6 +193,7 @@ export class FieldScene extends Phaser.Scene {
 
     this.buildNpcs(map);
     this.buildMarkers(map);
+    this.buildLabels(map);
     this.buildHero();
     this.buildSeasonOverlay(map);
   }
@@ -345,6 +349,50 @@ export class FieldScene extends Phaser.Scene {
       // 인물은 아래를 보고 서 있는다. 말을 걸면 돌아보는 건 대화가 붙을 때다
       if (this.ensureAnims(obj.sprite)) sprite.setFrame(frameIndex('down', IDLE_FRAME));
       this.npcLayer?.add(sprite);
+    }
+  }
+
+  /**
+   * 건물 이름표 (§10).
+   *
+   * 건물 그림만으로는 어느 것이 서고이고 어느 것이 신전인지 알 수 없다.
+   * 부지마다 문 아래에 이름을 적는다. 안 지은 자리도 적는다 —
+   * 무엇을 지을 수 있는지 보여야 마을을 키울 마음이 생긴다.
+   *
+   * **마을에서만 붙인다.** 실내는 이미 어느 건물인지 알고 들어온 것이라
+   * 이름표가 붙으면 잔소리가 된다.
+   *
+   * 글씨는 화면 픽셀 크기로 굽고 1/배율로 줄여 놓는다. 카메라가 다시 2배로
+   * 당기므로 결과가 1:1 이 되어 흐려지지 않는다.
+   */
+  private buildLabels(map: TileMapData): void {
+    this.labelLayer?.clear(true, true);
+    this.labelLayer ??= this.add.group();
+
+    if (map.id !== 'town') return;
+
+    for (const obj of map.objects) {
+      if (obj.building === undefined) continue;
+      const def = getBuilding(obj.building);
+      if (def === undefined) continue;
+
+      const level = this.buildings[obj.building] ?? 0;
+      const text = level > 0 ? `${def.name} ${level}` : def.name;
+
+      const label = this.add.text(worldX(obj.x), worldY(obj.y) + 2, text, {
+        fontFamily: 'Pretendard, system-ui, sans-serif',
+        fontSize: '11px',
+        // 지은 것은 또렷하게, 빈 자리는 물러나게
+        color: level > 0 ? PALETTE.paper : PALETTE.paperDim,
+        // 풀밭 위에서도 읽히게 어두운 테두리를 두른다
+        stroke: PALETTE.ink,
+        strokeThickness: 3,
+      });
+      label.setOrigin(0.5, 0);
+      label.setScale(1 / TILE.scale);
+      // 인물보다 앞에 둔다. 맵 아래쪽 건물에 가리지 않게
+      label.setDepth(10_000);
+      this.labelLayer.add(label);
     }
   }
 
