@@ -41,7 +41,20 @@ export type Terrain =
   // 실내 (§6, §10)
   | 'floor'
   | 'rug'
-  | 'counter';
+  | 'counter'
+  // 건물마다 방이 달라 보이게 하는 세간 (§10 실내)
+  | 'shelf'
+  | 'board'
+  | 'altar'
+  | 'pillar';
+
+/**
+ * 실내에서 일을 보는 자리 (§10).
+ *
+ * 건물마다 하나씩. 효과가 수치뿐인 건물이라도 들어가서 볼 것이 있어야
+ * '들어간다'는 행동에 뜻이 생긴다.
+ */
+export type RoomId = 'study' | 'altar' | 'roster' | 'training' | 'observatory';
 
 /** 오브젝트 종류 (§6). 상호작용 문구가 여기서 갈린다 (§5) */
 export type MapObjectType = 'door' | 'npc' | 'node' | 'gateway';
@@ -63,6 +76,8 @@ export interface MapObject {
   nodeKind?: 'loot' | 'event' | 'escort';
   /** 시장 판매대. 여기 서서 A 를 누르면 교역·선물 (§10) */
   shop?: boolean;
+  /** 실내의 목적 자리 (§10). 여기 서서 A 를 누르면 그 건물이 하는 일이 열린다 */
+  room?: RoomId;
   /** 지나갈 수 없는가. 인물은 밀어서 지나갈 수 없다 (§5) */
   solid?: boolean;
 }

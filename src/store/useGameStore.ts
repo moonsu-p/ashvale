@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { Dir, GameState, Ledger, ResourceId } from '@/types/game';
+import type { Dir, GameState, Ledger, ResourceId, StatId } from '@/types/game';
 import type { DialogueScript, DialogueState } from '@/types/dialogue';
 import type { SaveReason } from '@/data/save';
 import { newGame, newLedger, seedOf } from '@/systems/newGame';
@@ -24,7 +24,15 @@ import { START_HERO_TILE } from '@/data/start';
 import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
 import { loadMap } from '@/systems/map';
 import { rescueTile } from '@/systems/movement';
-import { gainXp, type LevelUp } from '@/systems/progression';
+import {
+  gainXp,
+  makeOffering,
+  raiseSkill,
+  raiseStat,
+  type LevelUp,
+} from '@/systems/progression';
+import type { RoomId } from '@/types/map';
+import { OFFERING_DONE, OFFERING_POOR } from '@/data/content/room-text';
 import { getRelic, rollRelic } from '@/systems/relics';
 import { applyToken } from '@/systems/korean';
 import {
@@ -205,6 +213,16 @@ interface GameStore {
   /** 시장 판매대가 열려 있는가. 메뉴가 아니라 시장 안에서 연다 (§10) */
   shop: boolean;
   openShop: () => void;
+
+  /** 열려 있는 실내 목적 자리 (§10). null 이면 닫혀 있다 */
+  room: RoomId | null;
+  openRoom: (id: RoomId) => void;
+  closeRoom: () => void;
+  /** 학당 수련장 — 쌓인 점수를 쓴다 */
+  spendStat: (stat: StatId) => void;
+  spendSkill: (skillId: string) => void;
+  /** 신전 제단 — 금화를 기력으로 바꾼다 */
+  offer: () => void;
   closeShop: () => void;
 
   /** 열려 있는 건설·증축 패널의 건물 id */
@@ -285,6 +303,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dialogue: null,
   buildPanel: null,
   shop: false,
+  room: null,
   regionSelect: false,
   explore: null,
   menu: null,
@@ -1155,6 +1174,58 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   openShop() {
     set({ shop: true });
+  },
+
+  openRoom(id) {
+    set({ room: id, error: null });
+  },
+
+  closeRoom() {
+    set({ room: null, error: null });
+  },
+
+  spendStat(stat) {
+    const { state } = get();
+    if (state === null) return;
+    const result = raiseStat(state, stat);
+    if (result.blocked !== 'ok') {
+      set({ error: '쓸 점수가 없습니다. 탐사로 경험을 쌓으세요.' });
+      return;
+    }
+    set({ state: result.state, error: null });
+    play('build');
+    void get().save('manual');
+  },
+
+  spendSkill(skillId) {
+    const { state } = get();
+    if (state === null) return;
+    const result = raiseSkill(state, skillId);
+    if (result.blocked !== 'ok') {
+      set({
+        error:
+          result.blocked === 'maxed'
+            ? '이미 끝까지 올렸습니다.'
+            : '쓸 점수가 없습니다. 탐사로 경험을 쌓으세요.',
+      });
+      return;
+    }
+    set({ state: result.state, error: null });
+    play('build');
+    void get().save('manual');
+  },
+
+  offer() {
+    const { state } = get();
+    if (state === null) return;
+    const result = makeOffering(state);
+    if (result.healed <= 0) {
+      set({ error: OFFERING_POOR });
+      return;
+    }
+    set({ state: result.state, error: null, toast: `${OFFERING_DONE} 기력 +${result.healed}` });
+    play('warm');
+    void get().save('manual');
   },
 
   closeShop() {

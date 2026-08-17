@@ -372,6 +372,143 @@ function drawOvergrown(ctx: CanvasRenderingContext2D, ox: number, oy: number, tx
 
 // ── 진입점 ────────────────────────────────────────────────
 
+/** 마루 — 널을 가로로 깐다. 이음매가 보여야 실내로 읽힌다 */
+function drawFloor(ctx: CanvasRenderingContext2D, ox: number, oy: number, tx: number, ty: number): void {
+  ctx.fillStyle = PALETTE.woodLight;
+  px(ctx, ox, oy, S, S);
+  ctx.fillStyle = PALETTE.wood;
+  // 널 이음매 두 줄. 타일마다 어긋나게 해서 벽돌처럼 안 보이게 한다
+  const shift = (tx + ty) % 2 === 0 ? 0 : 2;
+  px(ctx, ox, oy + 5 + shift, S, 1);
+  px(ctx, ox, oy + 12 - shift, S, 1);
+  for (let i = 0; i < 2; i++) {
+    px(ctx, ox + Math.floor(noise(tx, ty, i + 40) * S), oy + Math.floor(noise(ty, tx, i + 41) * S));
+  }
+}
+
+/** 깔개 — 가장자리에 술이 달린 천 */
+function drawRug(ctx: CanvasRenderingContext2D, ox: number, oy: number, near: Neighbors): void {
+  ctx.fillStyle = PALETTE.clothWarm;
+  px(ctx, ox, oy, S, S);
+  ctx.fillStyle = PALETTE.roofRed;
+  // 무늬 — 두 칸 간격 마름모
+  for (let i = 2; i < S; i += 6) {
+    for (let j = 2; j < S; j += 6) px(ctx, ox + i, oy + j, 2, 2);
+  }
+  // 깔개가 끝나는 쪽에만 테두리를 넣는다
+  if (near.n !== 'rug') px(ctx, ox, oy, S, 1);
+  if (near.s !== 'rug') px(ctx, ox, oy + S - 1, S, 1);
+  if (near.w !== 'rug') px(ctx, ox, oy, 1, S);
+  if (near.e !== 'rug') px(ctx, ox + S - 1, oy, 1, S);
+}
+
+/** 탁자 — 상판과 그 아래 그늘 */
+function drawCounter(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  ctx.fillStyle = PALETTE.wood;
+  px(ctx, ox, oy, S, S);
+  ctx.fillStyle = PALETTE.woodLight;
+  px(ctx, ox, oy + 2, S, 7);
+  ctx.fillStyle = PALETTE.soilDark;
+  px(ctx, ox, oy + 9, S, 2);
+}
+
+/** 책장 — 칸마다 색이 다른 책등이 꽂힌다 */
+function drawShelf(ctx: CanvasRenderingContext2D, ox: number, oy: number, tx: number, ty: number): void {
+  ctx.fillStyle = PALETTE.wood;
+  px(ctx, ox, oy, S, S);
+  const spines = ['roofRed', 'clothCool', 'thatch', 'grassDark', 'clothWarm'] as const;
+  // 두 단. 각 단에 책등을 세워 꽂는다
+  for (const shelfY of [2, 9]) {
+    ctx.fillStyle = PALETTE.soilDark;
+    px(ctx, ox, oy + shelfY + 5, S, 1);
+    let x = 1;
+    let i = 0;
+    while (x < S - 1) {
+      const w = 1 + Math.floor(noise(tx + x, ty + shelfY, i) * 2);
+      ctx.fillStyle = PALETTE[spines[Math.floor(noise(tx, ty + x, i + 7) * spines.length)] ?? 'roofRed'];
+      px(ctx, ox + x, oy + shelfY, w, 5);
+      x += w + 1;
+      i += 1;
+    }
+  }
+}
+
+/** 게시판 — 널빤지에 종이를 압정으로 박아 둔다. 길드관의 명부다 */
+function drawBoard(ctx: CanvasRenderingContext2D, ox: number, oy: number, tx: number, ty: number): void {
+  ctx.fillStyle = PALETTE.wood;
+  px(ctx, ox, oy, S, S);
+  // 널 이음매
+  ctx.fillStyle = PALETTE.soilDark;
+  px(ctx, ox + 5, oy, 1, S);
+  px(ctx, ox + 11, oy, 1, S);
+
+  // 종이 몇 장. 자리마다 다르게 붙는다
+  for (let i = 0; i < 3; i++) {
+    if (noise(tx, ty, i + 60) < 0.4) continue;
+    const nx = 1 + Math.floor(noise(tx, ty, i + 61) * 9);
+    const ny = 1 + Math.floor(noise(ty, tx, i + 62) * 9);
+    ctx.fillStyle = PALETTE.linen;
+    px(ctx, ox + nx, oy + ny, 5, 5);
+    // 글줄
+    ctx.fillStyle = PALETTE.stoneDark;
+    px(ctx, ox + nx + 1, oy + ny + 1, 3, 1);
+    px(ctx, ox + nx + 1, oy + ny + 3, 2, 1);
+    // 압정
+    ctx.fillStyle = PALETTE.roofRed;
+    px(ctx, ox + nx + 2, oy + ny);
+  }
+}
+
+/** 제단 — 돌단 위에 촛불. 방에서 유일하게 빛나는 자리다 */
+function drawAltar(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  ctx.fillStyle = PALETTE.woodLight;
+  px(ctx, ox, oy, S, S);
+
+  // 돌단
+  ctx.fillStyle = PALETTE.stone;
+  px(ctx, ox, oy + 7, S, S - 7);
+  ctx.fillStyle = PALETTE.stoneDark;
+  px(ctx, ox, oy + S - 2, S, 2);
+  // 상판
+  ctx.fillStyle = PALETTE.stoneLight;
+  px(ctx, ox, oy + 6, S, 2);
+
+  // 덮은 천 — 상판 위로 늘어뜨린다
+  ctx.fillStyle = PALETTE.clothCool;
+  px(ctx, ox + 2, oy + 8, S - 4, 4);
+  ctx.fillStyle = PALETTE.frost;
+  px(ctx, ox + 2, oy + 8, S - 4, 1);
+
+  // 촛불 둘. 방에서 유일하게 빛나는 자리다
+  for (const cx of [3, S - 5]) {
+    ctx.fillStyle = PALETTE.linen;
+    px(ctx, ox + cx, oy + 2, 2, 4);
+    ctx.fillStyle = PALETTE.flame;
+    px(ctx, ox + cx, oy + 1, 2, 1);
+    ctx.fillStyle = PALETTE.flameBright;
+    px(ctx, ox + cx, oy, 2, 1);
+  }
+
+  // 마른 꽃 (§ 방 서술과 맞춘다)
+  ctx.fillStyle = PALETTE.thatch;
+  px(ctx, ox + 7, oy + 3, 1, 3);
+  ctx.fillStyle = PALETTE.clothWarm;
+  px(ctx, ox + 7, oy + 2, 2, 1);
+}
+
+/** 기둥 — 세로 홈이 팬 돌기둥 */
+function drawPillar(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  ctx.fillStyle = PALETTE.woodLight;
+  px(ctx, ox, oy, S, S);
+  ctx.fillStyle = PALETTE.stone;
+  px(ctx, ox + 3, oy, S - 6, S);
+  ctx.fillStyle = PALETTE.stoneLight;
+  px(ctx, ox + 4, oy, 2, S);
+  px(ctx, ox + 2, oy, S - 4, 2);
+  ctx.fillStyle = PALETTE.stoneDark;
+  px(ctx, ox + S - 5, oy, 1, S);
+}
+
 export function drawTerrainTile(
   ctx: CanvasRenderingContext2D,
   terrain: Terrain,
@@ -412,6 +549,20 @@ export function drawTerrainTile(
       return drawTower(ctx, ox, oy);
     case 'overgrown':
       return drawOvergrown(ctx, ox, oy, tx, ty);
+    case 'floor':
+      return drawFloor(ctx, ox, oy, tx, ty);
+    case 'rug':
+      return drawRug(ctx, ox, oy, near);
+    case 'counter':
+      return drawCounter(ctx, ox, oy);
+    case 'shelf':
+      return drawShelf(ctx, ox, oy, tx, ty);
+    case 'board':
+      return drawBoard(ctx, ox, oy, tx, ty);
+    case 'altar':
+      return drawAltar(ctx, ox, oy);
+    case 'pillar':
+      return drawPillar(ctx, ox, oy);
     default: {
       // 지역 바닥 — 색만 다른 평평한 땅
       const look = TERRAIN_LOOK[terrain];

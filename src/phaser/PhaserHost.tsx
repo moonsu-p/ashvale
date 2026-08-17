@@ -75,6 +75,12 @@ export function PhaserHost() {
           return;
         }
 
+        // 실내의 목적 자리 (§10) — 열람·봉납·명부·수련·관측
+        if (object.room !== undefined) {
+          store.openRoom(object.room);
+          return;
+        }
+
         /**
          * 사건 노드는 밟으면 발동한다 (§11). 다만 마주 보고 섰을 때도
          * '살펴보기' 프롬프트가 뜬다 — 그때 A 가 아무 일도 안 하면
@@ -189,6 +195,7 @@ export function PhaserHost() {
         s.regionSelect ||
         s.explore !== null ||
         s.shop ||
+        s.room !== null ||
         s.naming !== null ||
         s.menu !== null;
       if (busy !== wasTalking) {

@@ -9,6 +9,7 @@ import type { Dir } from '@/types/game';
 import type { MapObject, TileMapData } from '@/types/map';
 import { isBlocked, objectAt } from './map';
 import { buildingIdFromIndoor, hasIndoor } from '@/data/maps/indoor';
+import { getRoom } from '@/data/rooms';
 
 export interface HeroTile {
   x: number;
@@ -120,6 +121,7 @@ function labelFor(
   indoors: boolean,
 ): string {
   if (object.shop === true) return '거래';
+  if (object.room !== undefined) return getRoom(object.room)?.prompt ?? '살펴보기';
 
   if (object.building !== undefined) {
     const level = buildings?.[object.building] ?? 0;
@@ -157,7 +159,8 @@ export function interactionAt(
     (under.type === 'door' ||
       under.type === 'gateway' ||
       under.building !== undefined ||
-      under.shop === true)
+      under.shop === true ||
+      under.room !== undefined)
   ) {
     return { object: under, label: labelFor(under, buildings, indoors) };
   }

@@ -41,6 +41,10 @@ export const TERRAIN_LOOK: Record<Terrain, TerrainLook> = {
   floor: { base: 'woodLight', detail: 'wood' },
   rug: { base: 'clothWarm', detail: 'roofRed' },
   counter: { base: 'wood', detail: 'woodLight' },
+  shelf: { base: 'wood', detail: 'thatch' },
+  board: { base: 'wood', detail: 'linen' },
+  altar: { base: 'stoneLight', detail: 'frost' },
+  pillar: { base: 'stone', detail: 'stoneLight' },
 
   sand: { base: 'dirtLight', detail: 'dirtLight' },
   bog: { base: 'soilDark', detail: 'soilDark' },

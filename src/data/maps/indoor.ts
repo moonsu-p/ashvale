@@ -15,9 +15,14 @@ import type { MapObject, Terrain, TileMapData } from '@/types/map';
 import { getBuilding } from '@/data/buildings';
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 import { CHAR_ROSTER } from '@/data/characters';
+import { roomForBuilding } from '@/data/rooms';
 
 const W = 13;
-const H = 9;
+/**
+ * 세로 화면이다. 13×9 로 두면 방이 가로로 납작해서 필드 위쪽만 차고
+ * 아래가 새까맣게 남는다. 화면 비율에 맞춰 세로로 늘린다.
+ */
+const H = 15;
 
 /** 나가는 문. 남쪽 가운데 */
 const EXIT_X = Math.floor(W / 2);
@@ -89,8 +94,8 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     put(W - 1, y, 'wall', true);
   }
 
-  // 가운데 깔개
-  for (let y = 3; y <= H - 3; y++) {
+  // 가운데 깔개. 벽과 세간에서 한 칸 떼어 놓는다
+  for (let y = 5; y <= H - 5; y++) {
     for (let x = 4; x <= W - 5; x++) put(x, y, 'rug', false);
   }
 
@@ -115,6 +120,49 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     solid: false,
     building: ctx.buildingId,
   });
+
+  /**
+   * 목적 자리가 있는 건물 — 서고·신전·길드관·학당·첨탑 (§10).
+   *
+   * 다섯 다 효과가 수치뿐이라 들어가도 볼 것이 없었다. 방마다 세간을 다르게
+   * 놓고 가운데에 설 자리를 하나 둔다. 세간은 막고, 설 자리는 비운다.
+   */
+  const room = roomForBuilding(ctx.buildingId);
+  if (room !== undefined) {
+    // 방마다 벽을 두르는 세간이 다르다 — 들어서면 어느 건물인지 바로 보인다
+    const FURNITURE: Record<string, Terrain> = {
+      library: 'shelf',
+      shrine: 'altar',
+      guildhall: 'board',
+      academy: 'pillar',
+      spire: 'pillar',
+    };
+    const piece = FURNITURE[ctx.buildingId] ?? 'shelf';
+
+    const centered = ctx.buildingId === 'shrine' || ctx.buildingId === 'spire';
+    if (centered) {
+      // 제단과 관측의는 가운데 하나만 둔다. 방이 비어야 그 하나가 산다
+      put(EXIT_X, 3, piece, true);
+      put(EXIT_X - 1, 3, piece, true);
+      put(EXIT_X + 1, 3, piece, true);
+    } else {
+      // 서고·명부·수련장은 양옆을 채운다
+      for (let y = 4; y <= H - 4; y++) {
+        put(2, y, piece, true);
+        put(W - 3, y, piece, true);
+      }
+    }
+
+    // 일 보는 자리는 걸어 올라오다 자연히 밟는 가운데 칸이다
+    objects.push({
+      id: `room-${room.id}`,
+      type: 'node',
+      x: EXIT_X,
+      y: centered ? 5 : Math.floor(H / 2),
+      solid: false,
+      room: room.id,
+    });
+  }
 
   // 시장 — 판매대에서 교역과 선물을 본다 (§10)
   if (ctx.buildingId === 'market') {

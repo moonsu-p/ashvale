@@ -185,7 +185,8 @@ export class FieldScene extends Phaser.Scene {
     this.mapImage?.destroy();
     this.mapImage = this.add.image(0, 0, key).setOrigin(0, 0).setDepth(-1000);
 
-    this.cameras.main.setBounds(0, 0, map.width * S, map.height * S);
+    // 실제 bounds 는 centerSmallMap 이 화면 크기를 보고 정한다
+    this.lastBounds = '';
 
     this.buildNpcs(map);
     this.buildMarkers(map);
@@ -473,8 +474,48 @@ export class FieldScene extends Phaser.Scene {
     this.lastPressCount = input.pressCount;
   }
 
+  /**
+   * 화면보다 작은 맵을 가운데에 놓는다.
+   *
+   * 실내가 그렇다. `startFollow` 는 주인공을 쫓느라 매 프레임 스크롤을 덮어써서
+   * `setBounds(..., centerOn)` 만으로는 왼쪽 위에 붙는다 — 방 아래가 통째로
+   * 비어 잘린 것처럼 보였다. 따라갈 여지가 없는 축은 여기서 눌러 둔다.
+   */
+  private lastBounds = '';
+
+  private centerSmallMap(): void {
+    const map = this.map;
+    if (map === null) return;
+    const cam = this.cameras.main;
+
+    const w = map.width * S;
+    const h = map.height * S;
+
+    /**
+     * 스크롤을 직접 넣어도 소용없다 — 카메라가 그리기 직전에 bounds 로 다시
+     * 잘라낸다. 그래서 **bounds 를 넓힌다.** 맵이 화면보다 작은 축은 맵을
+     * 가운데 둔 채 화면 크기만큼 늘리고, 큰 축은 맵 그대로 둔다.
+     * 작은 축에서는 bounds 폭이 화면 폭과 같아져 스크롤이 한 값에 못 박힌다.
+     */
+    // 카메라가 2배로 당겨져 있다. 화면 픽셀이 아니라 **월드 크기**와 견줘야 한다
+    const viewW = cam.displayWidth;
+    const viewH = cam.displayHeight;
+
+    const bw = Math.max(w, viewW);
+    const bh = Math.max(h, viewH);
+    const bx = (w - bw) / 2;
+    const by = (h - bh) / 2;
+
+    const key = `${bx},${by},${bw},${bh}`;
+    if (key === this.lastBounds) return;
+    this.lastBounds = key;
+    cam.setBounds(bx, by, bw, bh);
+  }
+
   override update(time: number): void {
     if (this.map === null || this.heroSprite === null) return;
+
+    this.centerSmallMap();
 
     const input = readInput();
 

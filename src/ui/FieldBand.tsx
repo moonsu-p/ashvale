@@ -12,6 +12,7 @@ import { InteractPrompt } from './InteractPrompt';
 import { DialogueLayer } from './dialogue/DialogueLayer';
 import { BuildPanel } from './BuildPanel';
 import { RegionSelect } from './RegionSelect';
+import { RoomPanel } from './RoomPanel';
 import { ExploreResult } from './ExploreResult';
 import { Toast } from './Toast';
 import { FamineBanner } from './FamineBanner';
@@ -33,6 +34,7 @@ export function FieldBand({ prompt, talking }: Props) {
       <DialogueLayer />
       <BuildPanel />
       <RegionSelect />
+      <RoomPanel />
       <ExploreResult />
       <Toast />
       <FamineBanner />
