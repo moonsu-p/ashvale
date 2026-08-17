@@ -19,6 +19,7 @@ import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { residentsOf } from '@/systems/roster';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
+import { drawEventMarker, drawLootMarker, drawSpentMarker } from '@/render/markers';
 import { readInput } from './inputBus';
 import { play } from '@/audio/sfx';
 
@@ -59,6 +60,12 @@ export class FieldScene extends Phaser.Scene {
   private approachSprite: Phaser.GameObjects.Sprite | null = null;
   /** 씬이 서기 전에 들어온 다가옴 요청 */
   private wantApproach: string | null = null;
+  /** 사건 노드 표식. 밟은 것만 골라 바꾸려고 id 로 들고 있는다 */
+  private markerLayer: Phaser.GameObjects.Group | null = null;
+  private readonly markers = new Map<string, Phaser.GameObjects.Image>();
+  private cleared: string[] = [];
+  private readonly reducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private hero: HeroTile = { x: 0, y: 0, dir: 'down' };
   private heroSprite: Phaser.GameObjects.Sprite | null = null;
   private npcLayer: Phaser.GameObjects.Group | null = null;
@@ -181,8 +188,73 @@ export class FieldScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, map.width * S, map.height * S);
 
     this.buildNpcs(map);
+    this.buildMarkers(map);
     this.buildHero();
     this.buildSeasonOverlay(map);
+  }
+
+  /**
+   * 사건 노드 표식 (§11).
+   *
+   * 노드가 안 보이면 아무 데나 걷다가 갑자기 판정이 뜬다.
+   * 어디로 가야 하는지 보여야 지역을 걸어다니는 뜻이 생긴다.
+   * 맵 텍스처에 굽지 않고 따로 얹는다 — 밟은 것만 골라 바꿔야 하기 때문이다.
+   */
+  private buildMarkers(map: TileMapData): void {
+    this.markerLayer?.clear(true, true);
+    this.markers.clear();
+    this.markerLayer ??= this.add.group();
+
+    this.ensureMarkerTexture('marker:loot', drawLootMarker);
+    this.ensureMarkerTexture('marker:event', drawEventMarker);
+    this.ensureMarkerTexture('marker:spent', drawSpentMarker);
+
+    for (const obj of map.objects) {
+      if (obj.nodeKind === undefined) continue;
+      const key = obj.nodeKind === 'loot' ? 'marker:loot' : 'marker:event';
+      const sprite = this.add.image(worldX(obj.x), worldY(obj.y), key);
+      sprite.setOrigin(0.5, 1);
+      sprite.setDepth(worldY(obj.y) - 1);
+      this.markerLayer.add(sprite);
+      this.markers.set(obj.id, sprite);
+
+      // 살짝 떠올랐다 가라앉는다. 멀리서도 눈에 걸리라고
+      if (!this.reducedMotion) {
+        this.tweens.add({
+          targets: sprite,
+          y: sprite.y - 2,
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.InOut',
+        });
+      }
+    }
+
+    this.applyCleared();
+  }
+
+  private ensureMarkerTexture(key: string, draw: (ctx: CanvasRenderingContext2D) => void): void {
+    if (this.textures.exists(key)) return;
+    const tex = this.textures.createCanvas(key, S, S);
+    if (tex === null) return;
+    draw(tex.getContext());
+    tex.refresh();
+  }
+
+  /** 이미 밟은 노드는 흔적만 남긴다. 어디를 봤는지 알아야 한다 */
+  setCleared(ids: string[]): void {
+    this.cleared = ids;
+    this.applyCleared();
+  }
+
+  private applyCleared(): void {
+    for (const [id, sprite] of this.markers) {
+      if (!this.cleared.includes(id)) continue;
+      this.tweens.killTweensOf(sprite);
+      sprite.setTexture('marker:spent');
+      sprite.setAlpha(0.55);
+    }
   }
 
   /**

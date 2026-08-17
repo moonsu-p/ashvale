@@ -15,6 +15,7 @@ import { encodePng } from './png';
 import { buildTownMap } from '../src/data/maps/town';
 import { buildRegionMap } from '../src/data/maps/region';
 import { paintMapCanvas } from '../src/render/terrain';
+import { drawEventMarker, drawLootMarker } from '../src/render/markers';
 import { TILE } from '../src/data/layout';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,9 @@ const OUT = resolve(HERE, '../docs/assets');
 class TinyCtx {
   fillStyle = '#000000';
   readonly data: Uint8Array;
+  /** 표식처럼 0,0 기준으로 그리는 것을 옮겨 붙일 때 쓴다 */
+  ox = 0;
+  oy = 0;
 
   constructor(
     readonly width: number,
@@ -32,12 +36,16 @@ class TinyCtx {
     this.data = new Uint8Array(width * height * 4);
   }
 
+  clearRect(): void {
+    // 표식은 투명 배경을 전제로 그린다. 여기서는 지도 위에 얹으므로 아무것도 안 한다
+  }
+
   fillRect(x: number, y: number, w: number, h: number): void {
     const [r, g, b] = parse(this.fillStyle);
-    const x0 = Math.max(0, Math.round(x));
-    const y0 = Math.max(0, Math.round(y));
-    const x1 = Math.min(this.width, Math.round(x + w));
-    const y1 = Math.min(this.height, Math.round(y + h));
+    const x0 = Math.max(0, Math.round(x + this.ox));
+    const y0 = Math.max(0, Math.round(y + this.oy));
+    const x1 = Math.min(this.width, Math.round(x + w + this.ox));
+    const y1 = Math.min(this.height, Math.round(y + h + this.oy));
     for (let py = y0; py < y1; py++) {
       for (let pxx = x0; pxx < x1; pxx++) {
         const i = (py * this.width + pxx) * 4;
@@ -86,6 +94,17 @@ paintMapCanvas(
   map.ground,
   map.deco,
 );
+
+// 사건 노드 표식을 지도 위에 얹는다 — 게임에서도 이 자리에 선다
+for (const obj of map.objects) {
+  if (obj.nodeKind === undefined) continue;
+  ctx.ox = obj.x * TILE.source;
+  ctx.oy = obj.y * TILE.source;
+  const draw = obj.nodeKind === 'loot' ? drawLootMarker : drawEventMarker;
+  draw(ctx as unknown as CanvasRenderingContext2D);
+}
+ctx.ox = 0;
+ctx.oy = 0;
 
 mkdirSync(OUT, { recursive: true });
 const name = isRegion ? `map-region-${arg}.png` : `map-town-era${arg}.png`;

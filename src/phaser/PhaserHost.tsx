@@ -154,6 +154,7 @@ export function PhaserHost() {
     let wasTalking = false;
     let lastApproach: string | null = null;
     let lastMap: string | null = null;
+    let lastCleared = '';
 
     const handle = (s: ReturnType<typeof useGameStore.getState>) => {
       if (s.state !== null) scene.syncFromState(s.state);
@@ -167,6 +168,13 @@ export function PhaserHost() {
           useGameStore.getState().abandonApproach();
         }
         if (map === 'town') useGameStore.getState().beginApproach();
+      }
+
+      // 밟은 표식은 흔적으로 바꾼다. 남은 곳이 어디인지 보여야 한다
+      const clearedKey = s.clearedNodes.join(',');
+      if (clearedKey !== lastCleared) {
+        lastCleared = clearedKey;
+        scene.setCleared(s.clearedNodes);
       }
 
       if (s.approaching !== lastApproach) {
