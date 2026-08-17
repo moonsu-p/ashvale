@@ -62,6 +62,7 @@ export function newGame(input: NewGameInput): GameState {
       unlockedRegions: [...START_UNLOCKED_REGIONS],
       currentMap: START_WORLD.currentMap,
       heroTile: { ...START_HERO_TILE },
+      clearedNodes: [],
     },
 
     companions: Object.fromEntries(
@@ -102,6 +103,7 @@ export function newGame(input: NewGameInput): GameState {
       confessions: 0,
       firsts: {},
       famineWeeks: 0,
+      tradedThisWeek: 0,
     },
   };
 }

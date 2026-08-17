@@ -165,7 +165,6 @@ interface GameStore {
   /** 이름은 플레이어가 붙인다 (§7.1) */
   renameCompanion: (companionId: string, name: string) => void;
   /** 이번 주에 쓴 거래액. 세이브에 담을 자리가 §4 에 없어 세션에만 둔다 */
-  tradedThisWeek: number;
   sellResource: (resource: ResourceId, amount: number) => void;
   buyResource: (resource: ResourceId, amount: number) => void;
   /** 선물 — 취향이 맞으면 크게 오른다. 인물당 4주 쿨다운 (§7.3) */
@@ -188,7 +187,6 @@ interface GameStore {
   /** 판정 연출 중인 결과. 닫아야 다시 걸을 수 있다 */
   explore: ExploreView | null;
   /** 이번 탐사에서 이미 밟은 노드. 세이브에 넣지 않는다 */
-  clearedNodes: string[];
 
   openRegionSelect: () => void;
   closeRegionSelect: () => void;
@@ -289,13 +287,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   shop: false,
   regionSelect: false,
   explore: null,
-  clearedNodes: [],
   menu: null,
   approaching: null,
   approachIgnores: {},
   rival: null,
   naming: null,
-  tradedThisWeek: 0,
 
   async boot() {
     const storage = getStorage();
@@ -766,7 +762,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   sellResource(resource, amount) {
-    const { state, tradedThisWeek } = get();
+    const { state } = get();
     if (state === null || amount <= 0) return;
     if (state.resources[resource] < amount) {
       set({ error: `${josa(RESOURCE_NAME[resource], '이')} 모자랍니다.` });
@@ -774,7 +770,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     const gold = sellValue(state, resource, amount);
     const limit = weeklyLimit(state);
-    if (tradedThisWeek + gold > limit) {
+    const traded = state.counters.tradedThisWeek;
+    if (traded + gold > limit) {
       set({ error: `이번 주 거래 한도(${limit})를 넘습니다. 시장을 올리거나 다음 주에 하세요.` });
       return;
     }
@@ -786,8 +783,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           [resource]: state.resources[resource] - amount,
           gold: state.resources.gold + gold,
         },
+        counters: { ...state.counters, tradedThisWeek: traded + gold },
       },
-      tradedThisWeek: tradedThisWeek + gold,
       error: null,
       toast: `금화 +${gold}`,
     });
@@ -795,7 +792,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   buyResource(resource, amount) {
-    const { state, tradedThisWeek } = get();
+    const { state } = get();
     if (state === null || amount <= 0) return;
     const gold = buyCost(state, resource, amount);
     if (state.resources.gold < gold) {
@@ -803,7 +800,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
     const limit = weeklyLimit(state);
-    if (tradedThisWeek + gold > limit) {
+    const traded = state.counters.tradedThisWeek;
+    if (traded + gold > limit) {
       set({ error: `이번 주 거래 한도(${limit})를 넘습니다. 시장을 올리거나 다음 주에 하세요.` });
       return;
     }
@@ -815,8 +813,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
           [resource]: state.resources[resource] + amount,
           gold: state.resources.gold - gold,
         },
+        counters: { ...state.counters, tradedThisWeek: traded + gold },
       },
-      tradedThisWeek: tradedThisWeek + gold,
       error: null,
       toast: `${RESOURCE_NAME[resource]} +${amount}`,
     });
@@ -944,8 +942,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ledger: outcome.ledger,
       error: null,
       menu: null,
-      clearedNodes: [],
-      explore: null,
+          explore: null,
       dialogue: null,
     });
   },
@@ -977,14 +974,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ...afterWeek.world,
           currentMap: regionMapId(regionId),
           heroTile: { ...REGION_ENTRY },
+          clearedNodes: [],
         },
       },
       regionSelect: false,
-      clearedNodes: [],
-      explore: null,
+          explore: null,
       // 주가 넘어갔으니 거래 한도도 새로 찬다
-      tradedThisWeek: 0,
-      rival: weekResult.rival ?? get().rival,
+          rival: weekResult.rival ?? get().rival,
     });
     void get().save('map-change');
   },
@@ -995,10 +991,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       state: {
         ...state,
-        world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
+        world: {
+          ...state.world,
+          currentMap: 'town',
+          heroTile: { ...START_HERO_TILE },
+          clearedNodes: [],
+        },
       },
-      clearedNodes: [],
-      explore: null,
+          explore: null,
     });
     void get().save('map-change');
   },
@@ -1036,8 +1036,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   stepNode(nodeId) {
-    const { state, clearedNodes } = get();
-    if (state === null || clearedNodes.includes(nodeId)) return;
+    const { state } = get();
+    if (state === null || state.world.clearedNodes.includes(nodeId)) return;
 
     const regionId = regionIdFromMap(state.world.currentMap);
     if (regionId === null) return;
@@ -1108,8 +1108,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     next = { ...next, chronicle: appendEntries(next.chronicle, entries) };
 
     set({
-      state: next,
-      clearedNodes: [...clearedNodes, nodeId],
+      state: {
+        ...next,
+        world: { ...next.world, clearedNodes: [...next.world.clearedNodes, nodeId] },
+      },
       explore: {
         regionId,
         outcome,
@@ -1139,10 +1141,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
             restUntilTurn: state.world.turn + DOWNED.restWeeks,
           },
           resources: { ...state.resources, gold },
-          world: { ...state.world, currentMap: 'town', heroTile: { ...START_HERO_TILE } },
+          world: {
+          ...state.world,
+          currentMap: 'town',
+          heroTile: { ...START_HERO_TILE },
+          clearedNodes: [],
         },
-        clearedNodes: [],
-      });
+        },
+            });
       void get().save('map-change');
     }
   },
@@ -1211,7 +1217,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (state === null) return;
     const result = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
-    set({ state: result.state, tradedThisWeek: 0, rival: result.rival ?? get().rival });
+    set({ state: result.state, rival: result.rival ?? get().rival });
 
     if (result.collapsed) {
       // 원장에 붕괴 시점을 남긴다. 이건 불러오기로 지워지지 않는다 (§14)

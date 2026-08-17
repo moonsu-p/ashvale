@@ -171,10 +171,10 @@ export function PhaserHost() {
       }
 
       // 밟은 표식은 흔적으로 바꾼다. 남은 곳이 어디인지 보여야 한다
-      const clearedKey = s.clearedNodes.join(',');
+      const clearedKey = s.state?.world.clearedNodes.join(',') ?? '';
       if (clearedKey !== lastCleared) {
         lastCleared = clearedKey;
-        scene.setCleared(s.clearedNodes);
+        scene.setCleared(s.state?.world.clearedNodes ?? []);
       }
 
       if (s.approaching !== lastApproach) {

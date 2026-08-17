@@ -97,6 +97,7 @@ export function collapse(state: GameState, rng: Rng): CollapseResult {
         eraIndex: Math.max(0, state.world.eraIndex - 1),
         eraTier: 0,
         currentMap: 'town',
+        clearedNodes: [],
       },
       companions,
       escort: null,

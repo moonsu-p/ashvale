@@ -20,7 +20,7 @@ export function MarketPanel() {
   const open = useGameStore((s) => s.shop);
   const close = useGameStore((s) => s.closeShop);
   const state = useGameStore((s) => s.state);
-  const traded = useGameStore((s) => s.tradedThisWeek);
+  const traded = useGameStore((s) => s.state?.counters.tradedThisWeek ?? 0);
   const sell = useGameStore((s) => s.sellResource);
   const buy = useGameStore((s) => s.buyResource);
   const give = useGameStore((s) => s.giveGift);

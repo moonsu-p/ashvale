@@ -9,8 +9,10 @@
  * 2 — counters.famineWeeks 추가. 붕괴 판정(§13)이 "식량 0 미만 4주 연속"을
  *     세는데 담을 자리가 없었다.
  * 3 — hero.restUntilTurn 추가. 쓰러진 뒤 2주 탐사 불가(§11)를 담을 자리.
+ * 4 — world.clearedNodes / counters.tradedThisWeek 추가. 둘 다 세션에만 있어서
+ *     새로고침으로 되감을 수 있었다 — 표식 무한 채집과 거래 한도 우회.
  */
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /** 원장 스키마 판. 세이브와 따로 움직인다 */
 export const LEDGER_VERSION = 1 as const;

@@ -99,6 +99,14 @@ export interface WorldState {
   /** 'town' | 'region:whisper' | 'indoor:hall' ... */
   currentMap: string;
   heroTile: { x: number; y: number; dir: Dir };
+  /**
+   * 이번 지역행에서 이미 치운 표식 (§11).
+   *
+   * **§4 에 없던 칸이다.** 세션에만 두면 지역 안에서 새로고침하는 것만으로
+   * 표식이 전부 되살아나 전리품을 무한히 캘 수 있다. 그러면 기력도 위험도
+   * 아무 의미가 없다. 지역에 들어가거나 마을로 돌아올 때 비운다.
+   */
+  clearedNodes: string[];
 }
 
 export interface Counters {
@@ -115,10 +123,17 @@ export interface Counters {
    * 그건 원장(§14)이 막으려는 바로 그 행동이다. 그래서 판을 2로 올렸다.
    */
   famineWeeks: number;
+  /**
+   * 이번 주에 이미 오간 거래액 (§9 주간 한도).
+   *
+   * **§4 에 없던 칸이다.** famineWeeks 와 같은 이유 — 세션에만 두면
+   * 새로고침 한 번으로 한도가 풀린다.
+   */
+  tradedThisWeek: number;
 }
 
 export interface GameState {
-  schemaVersion: 3;
+  schemaVersion: 4;
   createdAt: number;
 
   hero: HeroState;

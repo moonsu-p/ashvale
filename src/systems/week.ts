@@ -139,6 +139,8 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
   next = {
     ...next,
     world: { ...next.world, year, week, turn },
+    // 주가 넘어갔으니 거래 한도가 새로 찬다 (§9)
+    counters: { ...next.counters, tradedThisWeek: 0 },
     chronicle: appendEntries(next.chronicle, entries),
   };
 

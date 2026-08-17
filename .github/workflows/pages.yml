@@ -1,0 +1,53 @@
+# GitHub Pages 배포.
+#
+# main 에 올라가면 빌드해서 Pages 로 내보낸다.
+# 저장소가 msiris/ashvale 라 주소가 /ashvale/ 하위 경로가 되는데,
+# vite.config 의 base 가 './' 라 그대로 동작한다. 경로를 박아 넣지 않는다.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포는 한 번에 하나만. 밀린 건 최신 것만 남긴다
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # 타입 검사까지 통과해야 배포된다 (npm run build 안에 들어 있다)
+      - run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

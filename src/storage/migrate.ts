@@ -33,6 +33,18 @@ const MIGRATIONS: Record<number, Migration> = {
     const hero = isRecord(raw['hero']) ? raw['hero'] : {};
     return { ...raw, schemaVersion: 3, hero: { ...hero, restUntilTurn: 0 } };
   },
+
+  /** 3 -> 4: 새로고침으로 되감기던 두 값을 세이브로 옮긴다 */
+  3: (raw) => {
+    const world = isRecord(raw['world']) ? raw['world'] : {};
+    const counters = isRecord(raw['counters']) ? raw['counters'] : {};
+    return {
+      ...raw,
+      schemaVersion: 4,
+      world: { ...world, clearedNodes: [] },
+      counters: { ...counters, tradedThisWeek: 0 },
+    };
+  },
 };
 
 export type MigrateResult =
