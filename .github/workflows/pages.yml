@@ -1,8 +1,9 @@
 # GitHub Pages 배포.
 #
 # main 에 올라가면 빌드해서 Pages 로 내보낸다.
-# 저장소가 msiris/ashvale 라 주소가 /ashvale/ 하위 경로가 되는데,
-# vite.config 의 base 가 './' 라 그대로 동작한다. 경로를 박아 넣지 않는다.
+# 주소가 /ashvale/ 하위 경로가 되는데 vite.config 의 base 가 './' 라
+# 그대로 동작한다. **저장소 이름을 어디에도 박아 넣지 않는다** —
+# 소유 계정이 바뀌어도 손댈 곳이 없다.
 name: pages
 
 on:
