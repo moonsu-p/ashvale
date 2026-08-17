@@ -70,6 +70,13 @@ export interface MapObject {
   sprite?: string;
   /** npc 일 때 대사를 끌어올 곳. 없으면 말을 걸어도 대화가 열리지 않는다 */
   voice?: { kind: 'companion' | 'patron'; id: string };
+  /**
+   * 발밑에 적을 이름.
+   *
+   * `voice.id` 는 원형 id 라(같은 원형이 둘일 수 있다) 여기서 쓸 수 없다.
+   * 이름은 상태가 정하므로 맵을 세울 때 받아 적어 둔다.
+   */
+  label?: string;
   /** 건물 부지면 그 건물 id. 여기 서서 A 를 누르면 건설·증축 패널이 열린다 (§10) */
   building?: string;
   /** 지역 사건 노드의 종류 (§11). 밟으면 판정이 돈다 */

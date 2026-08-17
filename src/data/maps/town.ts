@@ -59,7 +59,7 @@ export interface TownContext {
    * 예전에는 기사 하나가 좌표까지 박힌 채 서 있었고 나머지는 마을에 없었다.
    * 이제 명단에서 온다 — 상태가 정하고 맵은 그리기만 한다.
    */
-  folk?: { id: string; archetypeId: string }[];
+  folk?: { id: string; archetypeId: string; name: string }[];
 }
 
 /**
@@ -87,7 +87,8 @@ export function townKey(ctx: TownContext): string {
     .map((id) => `${id}${ctx.buildings[id] ?? 0}`)
     .join(',');
   // 누가 마을에 서 있는지도 열쇠에 넣는다. 안 그러면 명단이 바뀌어도 다시 안 그린다
-  const who = (ctx.folk ?? []).map((f) => `${f.id}@${f.archetypeId}`).join(',');
+  // 이름도 넣는다. 이름을 바꿨는데 이름표가 그대로면 안 바꾼 것과 같다
+  const who = (ctx.folk ?? []).map((f) => `${f.id}@${f.archetypeId}@${f.name}`).join(',');
   return `town:${ctx.eraIndex}:${levels}:${who}`;
 }
 
@@ -201,6 +202,7 @@ export function buildTownMap(ctx: TownContext): TileMapData {
         y: at.y,
         sprite: companionSprite(who.archetypeId),
         voice: { kind: 'companion', id: who.archetypeId },
+        label: who.name,
         solid: true,
       });
       break;

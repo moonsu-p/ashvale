@@ -17,7 +17,7 @@ import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
 import { isBlocked, loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
-import { residentsOf, townFolk } from '@/systems/roster';
+import { displayName, residentsOf, townFolk } from '@/systems/roster';
 import { companionSprite } from '@/data/sprites';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
@@ -86,6 +86,10 @@ export class FieldScene extends Phaser.Scene {
   private escortSpriteId = '';
   private escortTile = { x: 0, y: 0 };
   private mapImage: Phaser.GameObjects.Image | null = null;
+  /** 인물 발밑 이름표. 주인 스프라이트를 따라다닌다 */
+  private nameTags: { owner: Phaser.GameObjects.Sprite; tag: Phaser.GameObjects.Text }[] = [];
+  /** 주인공 이름. 이름 짓기에서 바뀔 수 있어 들고 있는다 */
+  private heroName = '';
 
   /** create() 전에 들어온 상태를 담아 둔다 */
   private pending: GameState | null = null;
@@ -149,14 +153,35 @@ export class FieldScene extends Phaser.Scene {
   private applyState(state: GameState): void {
     this.buildings = state.town.buildings;
 
+    // 이름을 새로 지었으면 이름표도 다시 단다
+    if (state.hero.name !== this.heroName) {
+      this.heroName = state.hero.name;
+      if (this.heroSprite !== null) {
+        this.nameTags = this.nameTags.filter(({ owner, tag }) => {
+          if (owner !== this.heroSprite) return true;
+          tag.destroy();
+          return false;
+        });
+        this.makeNameTag(this.heroSprite, this.heroName);
+      }
+    }
+
     const ctx: MapContext = {
       mapId: state.world.currentMap,
       eraIndex: state.world.eraIndex,
       buildings: state.town.buildings,
       // 숙소에 누가 사는지는 관계 상태에서 나온다 (§7.4)
-      residents: residentsOf(state).map((c) => ({ id: c.id, archetypeId: c.archetypeId })),
+      residents: residentsOf(state).map((c) => ({
+        id: c.id,
+        archetypeId: c.archetypeId,
+        name: displayName(c),
+      })),
       // 마을에 서 있을 인물 (§7.6). 동행 중인 사람과 숙소 거주자는 빠진다
-      folk: townFolk(state).map((c) => ({ id: c.id, archetypeId: c.archetypeId })),
+      folk: townFolk(state).map((c) => ({
+        id: c.id,
+        archetypeId: c.archetypeId,
+        name: displayName(c),
+      })),
     };
 
     // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다
@@ -208,6 +233,9 @@ export class FieldScene extends Phaser.Scene {
 
     // 실제 bounds 는 centerSmallMap 이 화면 크기를 보고 정한다
     this.lastBounds = '';
+
+    // 이름표는 주인을 따라 붙는다. 주인을 새로 세우니 먼저 걷는다
+    this.clearNameTags();
 
     this.buildNpcs(map);
     this.buildMarkers(map);
@@ -371,6 +399,7 @@ export class FieldScene extends Phaser.Scene {
       // 인물은 아래를 보고 서 있는다. 말을 걸면 돌아보는 건 대화가 붙을 때다
       if (this.ensureAnims(obj.sprite)) sprite.setFrame(frameIndex('down', IDLE_FRAME));
       this.npcLayer?.add(sprite);
+      this.makeNameTag(sprite, obj.label ?? '');
     }
   }
 
@@ -418,6 +447,49 @@ export class FieldScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * 인물 발밑 이름표.
+   *
+   * 건물 이름표(buildLabels)와 달리 **스프라이트를 따라다녀야 한다** —
+   * 동행자도 다가오는 인물도 움직인다. 그래서 자리를 굳히지 않고
+   * 매 프레임 주인 스프라이트에 맞춘다.
+   *
+   * 글씨는 화면 픽셀로 굽고 1/배율로 줄인다. 카메라가 2배로 당기니 1:1 이 된다.
+   */
+  private makeNameTag(owner: Phaser.GameObjects.Sprite, text: string): void {
+    if (text === '') return;
+
+    const tag = this.add.text(owner.x, owner.y + 2, text, {
+      fontFamily: 'Pretendard, system-ui, sans-serif',
+      fontSize: '11px',
+      color: PALETTE.paper,
+      // 풀밭이든 마루든 읽히게 어두운 테두리를 두른다
+      stroke: PALETTE.ink,
+      strokeThickness: 3,
+    });
+    tag.setOrigin(0.5, 0);
+    tag.setScale(1 / TILE.scale);
+    tag.setDepth(10_000);
+    this.nameTags.push({ owner, tag });
+  }
+
+  /** 주인이 사라졌으면 이름표도 걷는다. 아니면 발밑에 맞춘다 */
+  private syncNameTags(): void {
+    this.nameTags = this.nameTags.filter(({ owner, tag }) => {
+      if (!owner.active) {
+        tag.destroy();
+        return false;
+      }
+      tag.setPosition(owner.x, owner.y + 2);
+      return true;
+    });
+  }
+
+  private clearNameTags(): void {
+    for (const { tag } of this.nameTags) tag.destroy();
+    this.nameTags = [];
+  }
+
   private buildHero(): void {
     this.heroSprite?.destroy();
     const texKey = this.textureFor(HERO_SPRITE);
@@ -425,6 +497,7 @@ export class FieldScene extends Phaser.Scene {
     this.ensureAnims(HERO_SPRITE);
     this.placeHero();
     this.cameras.main.startFollow(this.heroSprite, true, 1, 1);
+    this.makeNameTag(this.heroSprite, this.heroName);
   }
 
   private placeHero(): void {
@@ -594,6 +667,7 @@ export class FieldScene extends Phaser.Scene {
     if (this.map === null || this.heroSprite === null) return;
 
     this.centerSmallMap();
+    this.syncNameTags();
 
     const input = readInput();
 
@@ -760,6 +834,7 @@ export class FieldScene extends Phaser.Scene {
     sprite.setDepth(worldY(this.escortTile.y));
     if (this.ensureAnims(spriteId)) sprite.setFrame(frameIndex(this.hero.dir, IDLE_FRAME));
     this.escortSprite = sprite;
+    this.makeNameTag(sprite, displayName(who));
   }
 
   private finishStep(): void {

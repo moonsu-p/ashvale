@@ -52,7 +52,7 @@ export interface IndoorContext {
   buildingId: string;
   eraIndex: number;
   /** 숙소에 상주하는 인물 (§7.4 수락 → 마을에 상주 위치가 생긴다) */
-  residents?: { id: string; archetypeId: string }[];
+  residents?: { id: string; archetypeId: string; name: string }[];
 }
 
 export function buildIndoorMap(ctx: IndoorContext): TileMapData {
@@ -178,6 +178,7 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
         y: 4,
         sprite: companionSprite(who.archetypeId),
         voice: { kind: 'companion', id: who.archetypeId },
+        label: who.name,
         solid: true,
       });
     });
@@ -199,6 +200,7 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
         y: 3,
         sprite: patronSprite(patronId),
         voice: { kind: 'patron', id: patronId },
+        label: PATRON_VOICES[patronId]?.name ?? '',
         solid: true,
       });
     });

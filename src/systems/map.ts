@@ -26,7 +26,7 @@ import { regionIdFromMap } from '@/data/regions';
 export interface MapContext extends TownContext {
   mapId: string;
   /** 숙소에 서 있을 인물 (§7.4). 실내 맵에서만 쓴다 */
-  residents?: { id: string; archetypeId: string }[];
+  residents?: { id: string; archetypeId: string; name: string }[];
 }
 
 const cache = new Map<string, TileMapData>();
@@ -36,7 +36,7 @@ export function mapKey(ctx: MapContext): string {
   if (ctx.mapId === 'town') return townKey(ctx);
   // 실내는 시대에 따라 의뢰인이, 숙소는 상주하는 인물이 달라진다
   if (buildingIdFromIndoor(ctx.mapId) !== null) {
-    const who = (ctx.residents ?? []).map((r) => r.id).join(',');
+    const who = (ctx.residents ?? []).map((r) => `${r.id}@${r.name}`).join(',');
     return `${ctx.mapId}:${ctx.eraIndex}:${who}`;
   }
   return ctx.mapId;

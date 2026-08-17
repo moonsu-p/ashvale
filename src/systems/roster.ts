@@ -113,3 +113,14 @@ export function townFolk(state: GameState): CompanionRecord[] {
     )
     .sort((a, b) => a.joinedTurn - b.joinedTurn || a.id.localeCompare(b.id));
 }
+
+/**
+ * 화면에 적을 이름.
+ *
+ * 이름은 플레이어가 붙인다 (§7.1). 아직 안 붙였으면 원형 이름표로 보인다 —
+ * 빈칸을 두면 누구인지 알 수 없고, 지어내 붙이면 §7.1 을 어긴다.
+ */
+export function displayName(who: CompanionRecord): string {
+  if (who.name !== '') return who.name;
+  return getArchetype(who.archetypeId)?.label ?? '이름 없음';
+}
