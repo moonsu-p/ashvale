@@ -60,6 +60,16 @@ export function PhaserHost() {
           return;
         }
 
+        /**
+         * 사건 노드는 밟으면 발동한다 (§11). 다만 마주 보고 섰을 때도
+         * '살펴보기' 프롬프트가 뜬다 — 그때 A 가 아무 일도 안 하면
+         * 프롬프트가 거짓말이 된다. 눌러도 같은 판정이 돌게 한다
+         */
+        if (object.nodeKind !== undefined) {
+          store.stepNode(object.id);
+          return;
+        }
+
         // 길목 — 마을에서는 지역 선택으로, 지역에서는 마을 복귀로 (§6, §11)
         if (object.type === 'gateway') {
           if (object.target === 'town') store.leaveRegion();
