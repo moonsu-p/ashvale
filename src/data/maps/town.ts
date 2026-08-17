@@ -121,9 +121,16 @@ export function buildTownMap(ctx: TownContext): TileMapData {
     }
   }
 
-  // ── 못과 길 ────────────────────────────────────────
-  for (let y = 25; y <= 27; y++) {
-    for (let x = 2; x <= 4; x++) if (inRect(rect, x, y)) put(x, y, 'water', true);
+  /**
+   * 못과 길.
+   *
+   * 못을 한 칸 내리고 왼쪽으로 붙였다. 예전 자리(x2~4, y25~27)는 채석장
+   * 부지(3,22 · 3×3) 문 바로 아래에 물이 닿았다 — 채석장이 4단계가 되면
+   * 부지 전체가 건물이라 옆으로 붙을 수 없고, 남은 접근로인 문 아래가
+   * 물이라 **문에 갈 수가 없었다.**
+   */
+  for (let y = 26; y <= 28; y++) {
+    for (let x = 1; x <= 3; x++) if (inRect(rect, x, y)) put(x, y, 'water', true);
   }
   for (let y = 19; y <= rect.y1; y++) if (inRect(rect, GATEWAY_X, y)) put(GATEWAY_X, y, 'path', false);
 
@@ -149,6 +156,22 @@ export function buildTownMap(ctx: TownContext): TileMapData {
       solid: false,
       building: plot.buildingId,
     });
+  }
+
+  /**
+   * 문 앞 한 칸을 반드시 비운다.
+   *
+   * 건물이 커지면 부지를 다 덮어 옆으로 붙을 수 없게 되고, 그때 남는
+   * 유일한 접근로가 문 아래 칸이다. 거기가 물이나 다른 건물이면 그 건물은
+   * 영영 못 들어간다 — 채석장이 실제로 그랬다.
+   * 막혀 있으면 흙길을 깔아 둔다. 자리마다 손으로 맞추지 않아도 되게.
+   */
+  for (const plot of PLOTS) {
+    if (!inRect(rect, plot.x, plot.y)) continue;
+    const doorX = plot.x + Math.floor(plot.w / 2);
+    const front = plot.y + plot.h;
+    if (!inRect(rect, doorX, front)) continue;
+    if (collision[front * W + doorX]) put(doorX, front, 'path', false);
   }
 
   // ── 성벽 링 ────────────────────────────────────────

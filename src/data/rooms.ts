@@ -22,14 +22,21 @@ export interface RoomDef {
   title: string;
   /** 상호작용 문구 (§5). 동사원형 */
   prompt: string;
+  /**
+   * 자리에 붙는 이름표.
+   *
+   * 빈 바닥에 서야만 프롬프트가 떠서, 어디서 일을 보는지 몰라 그냥
+   * 지나치게 된다. 표식과 이름을 붙여 멀리서도 보이게 한다.
+   */
+  keeper: string;
 }
 
 export const ROOMS: RoomDef[] = [
-  { id: 'study', buildingId: 'library', title: '열람대', prompt: '열람' },
-  { id: 'altar', buildingId: 'shrine', title: '제단', prompt: '봉납' },
-  { id: 'roster', buildingId: 'guildhall', title: '명부', prompt: '명부' },
-  { id: 'training', buildingId: 'academy', title: '수련장', prompt: '수련' },
-  { id: 'observatory', buildingId: 'spire', title: '관측의', prompt: '관측' },
+  { id: 'study', buildingId: 'library', title: '열람대', prompt: '열람', keeper: '사서' },
+  { id: 'altar', buildingId: 'shrine', title: '제단', prompt: '봉납', keeper: '신관' },
+  { id: 'roster', buildingId: 'guildhall', title: '명부', prompt: '명부', keeper: '서기' },
+  { id: 'training', buildingId: 'academy', title: '수련장', prompt: '수련', keeper: '교관' },
+  { id: 'observatory', buildingId: 'spire', title: '관측의', prompt: '관측', keeper: '관측자' },
 ];
 
 const BY_BUILDING = new Map(ROOMS.map((r) => [r.buildingId, r]));

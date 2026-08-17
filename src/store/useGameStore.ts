@@ -80,11 +80,30 @@ import {
   withAffinity,
 } from '@/systems/relationships';
 import { encodeForSlot } from '@/systems/imagePipeline';
-import { imageKey } from '@/data/images';
+import { imageKey, SCENE_SLOT, SLOT_COUNT } from '@/data/images';
 import {
   exportBundle as buildBundle,
   importBundle as restoreBundle,
 } from '@/storage/bundle';
+
+/**
+ * 사건이 끝난 뒤 걸 그림의 자리.
+ *
+ * 사건 삽화(슬롯 3)가 채워져 있으면 그것. 없으면 평소 쓰는 자리를 뺀
+ * 나머지 중 채워진 첫 자리. 그것도 없으면 null — 바꿀 것이 없다.
+ */
+function revealFor(who: { images: Record<number, string | null>; pickedSlot: number } | undefined): number | null {
+  if (who === undefined) return null;
+  const filled = (slot: number) => {
+    const key = who.images[slot];
+    return key !== null && key !== undefined && key !== '';
+  };
+  if (filled(SCENE_SLOT) && who.pickedSlot !== SCENE_SLOT) return SCENE_SLOT;
+  for (let slot = 0; slot < SLOT_COUNT; slot++) {
+    if (slot !== who.pickedSlot && filled(slot)) return slot;
+  }
+  return null;
+}
 
 /** 판정 연출이 보여 줄 것 */
 export interface ExploreView {
@@ -179,8 +198,8 @@ interface GameStore {
   giveGift: (companionId: string, giftId: string) => void;
 
   /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
-  menu: 'companions' | 'chronicle' | 'bundle' | 'settings' | null;
-  openMenu: (tab: 'companions' | 'chronicle' | 'bundle' | 'settings') => void;
+  menu: 'status' | 'companions' | 'chronicle' | 'bundle' | 'settings' | null;
+  openMenu: (tab: 'status' | 'companions' | 'chronicle' | 'bundle' | 'settings') => void;
   closeMenu: () => void;
 
   /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
@@ -404,7 +423,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   openDialogue(script) {
     if (script.lines.length === 0) return;
-    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null } });
   },
 
   /**
@@ -622,7 +641,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ dialogue: null, approaching: null });
       return;
     }
-    set({ dialogue: { ...d, phase: 'typing', reply: option.reply } });
+    /**
+     * 마무리 대사와 함께 그림을 바꾼다 (§8.2).
+     *
+     * 고르고 나면 화면이 그대로여서 무엇이 달라졌는지 눈에 남는 게 없었다.
+     * 사건 삽화(슬롯 3)를 먼저 찾고, 없으면 평소 쓰는 자리가 아닌 다른 자리를
+     * 쓴다. 한 장만 넣었으면 바꿀 것이 없으니 그대로 둔다.
+     */
+    const speaker = d.script.portrait.speaker;
+    const who =
+      speaker.kind === 'companion'
+        ? Object.values(get().state?.companions ?? {}).find(
+            (c) => c.archetypeId === speaker.id && c.departedTurn === null,
+          )
+        : undefined;
+    set({ dialogue: { ...d, phase: 'typing', reply: option.reply, revealSlot: revealFor(who) } });
   },
 
   closeDialogue() {
@@ -663,7 +696,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const script = buildRivalScript(state, rival, state.town.name);
       set({ rival: null });
       if (script !== null) {
-        set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+        set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null } });
         return;
       }
     }
@@ -698,7 +731,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ approaching: null });
       return;
     }
-    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null } });
+    set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null } });
   },
 
   /** 무시하고 걸어갔다. 세 번이면 호감 −3 과 함께 물러난다 (§7.3) */

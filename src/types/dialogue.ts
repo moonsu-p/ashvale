@@ -71,4 +71,12 @@ export interface DialogueState {
   phase: DialoguePhase;
   /** 선택을 마친 뒤 보여 주는 마무리 대사. 이게 차 있으면 다음 A 에 닫힌다 */
   reply: string | null;
+  /**
+   * 마무리 대사 동안 바꿔 걸 슬롯 (§8.2).
+   *
+   * 고르고 나면 화면이 그대로라 **무슨 일이 일어났는지 눈에 남는 게 없었다.**
+   * 사건 삽화(슬롯 3)가 있으면 그걸로, 없으면 채워 둔 다른 자리로 바꾼다.
+   * null 이면 평소 쓰던 자리를 그대로 둔다 — 한 장만 넣었으면 바꿀 것이 없다.
+   */
+  revealSlot: number | null;
 }

@@ -51,6 +51,9 @@ export function targetSize(slot: number): { width: number; height: number } {
 /** 슬롯 6개 (§8.2) */
 export const SLOT_COUNT = 6;
 
+/** 사건 삽화 자리. 사건이 끝난 뒤 여기를 걸어 준다 (§8.2) */
+export const SCENE_SLOT = 3;
+
 export const SLOT_LABEL: Record<number, string> = {
   0: '기본 초상',
   1: '표정 변화',

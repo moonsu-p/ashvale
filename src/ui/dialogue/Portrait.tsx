@@ -54,7 +54,7 @@ export function Portrait({ portrait, media = null }: Props) {
       {media === null ? (
         <Silhouette label={portrait.label} />
       ) : media.video ? (
-        <LoopVideo src={media.url} className="h-full w-full object-cover" />
+        <LoopVideo src={media.url} className="h-full w-full" />
       ) : (
         <img src={media.url} alt="" className="h-full w-full object-cover" />
       )}

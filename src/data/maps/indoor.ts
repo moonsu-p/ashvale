@@ -116,6 +116,7 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     y: INDOOR_ENTRY.y,
     solid: false,
     building: ctx.buildingId,
+    label: '목수',
   });
 
   /**
@@ -158,6 +159,7 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
       y: centered ? 5 : Math.floor(H / 2),
       solid: false,
       room: room.id,
+      label: room.keeper,
     });
   }
 
@@ -170,6 +172,7 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
       y: 3,
       solid: false,
       shop: true,
+      label: '상인',
     });
   }
 

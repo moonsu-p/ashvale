@@ -6,9 +6,11 @@
 import { useGameStore } from '@/store/useGameStore';
 import { TOUCH_MIN } from '@/data/layout';
 import { CompanionGallery } from './CompanionGallery';
+import { StatusPanel } from './StatusPanel';
 import { BundlePanel } from './BundlePanel';
 
 const TABS = [
+  { id: 'status', label: '상태' },
   { id: 'companions', label: '인물' },
   { id: 'chronicle', label: '연대기' },
   { id: 'bundle', label: '꾸러미' },
@@ -107,6 +109,7 @@ export function MenuOverlay() {
         </nav>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {menu === 'status' && <StatusPanel />}
           {menu === 'companions' && <CompanionGallery />}
           {menu === 'chronicle' && <ChroniclePanel />}
           {menu === 'bundle' && <BundlePanel />}

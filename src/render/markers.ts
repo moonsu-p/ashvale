@@ -103,3 +103,33 @@ export function drawSpentMarker(ctx: CanvasRenderingContext2D): void {
   px(ctx, 5, 10, 6, 2);
   px(ctx, 7, 8, 2, 2);
 }
+
+/**
+ * 실내 상호작용 자리 표식 (§10).
+ *
+ * 거래·증축·봉납·열람·명부·수련·관측은 **빈 바닥 한 칸**이었다.
+ * 그 위에 서야만 프롬프트가 떠서, 어디서 일을 보는지 모르고 그냥 지나치게 된다.
+ * 지역 노드와 같은 방식으로 바닥에 고리를 두르고 서 있는 표를 세운다 —
+ * 멀리서도 "저기서 뭘 한다"가 보여야 한다.
+ */
+export function drawSpotMarker(ctx: CanvasRenderingContext2D): void {
+  drawRing(ctx, PALETTE.flameBright);
+
+  // 세워 둔 표. 바닥 고리 안에서 위로 뻗는다
+  ctx.fillStyle = PALETTE.wood;
+  px(ctx, 7, 5, 2, 8);
+
+  // 머리의 패 — 무엇을 하는 자리인지는 이름표가 말한다
+  ctx.fillStyle = PALETTE.linen;
+  px(ctx, 4, 2, 8, 5);
+  ctx.fillStyle = PALETTE.soilDark;
+  px(ctx, 5, 3, 6, 1);
+  px(ctx, 5, 5, 4, 1);
+
+  // 테두리를 어둡게 눌러 바닥에서 떠 보이게
+  ctx.fillStyle = PALETTE.ink;
+  px(ctx, 4, 1, 8, 1);
+  px(ctx, 3, 2, 1, 5);
+  px(ctx, 12, 2, 1, 5);
+  px(ctx, 4, 7, 8, 1);
+}

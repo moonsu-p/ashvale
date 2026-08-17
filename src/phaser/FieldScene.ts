@@ -21,7 +21,12 @@ import { displayName, residentsOf, townFolk } from '@/systems/roster';
 import { companionSprite } from '@/data/sprites';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
-import { drawEventMarker, drawLootMarker, drawSpentMarker } from '@/render/markers';
+import {
+  drawEventMarker,
+  drawLootMarker,
+  drawSpentMarker,
+  drawSpotMarker,
+} from '@/render/markers';
 import { readInput } from './inputBus';
 import { play } from '@/audio/sfx';
 
@@ -87,7 +92,7 @@ export class FieldScene extends Phaser.Scene {
   private escortTile = { x: 0, y: 0 };
   private mapImage: Phaser.GameObjects.Image | null = null;
   /** 인물 발밑 이름표. 주인 스프라이트를 따라다닌다 */
-  private nameTags: { owner: Phaser.GameObjects.Sprite; tag: Phaser.GameObjects.Text }[] = [];
+  private nameTags: { owner: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject; tag: Phaser.GameObjects.Text }[] = [];
   /** 주인공 이름. 이름 짓기에서 바뀔 수 있어 들고 있는다 */
   private heroName = '';
 
@@ -263,6 +268,28 @@ export class FieldScene extends Phaser.Scene {
     this.ensureMarkerTexture('marker:loot', drawLootMarker);
     this.ensureMarkerTexture('marker:event', drawEventMarker);
     this.ensureMarkerTexture('marker:spent', drawSpentMarker);
+    this.ensureMarkerTexture('marker:spot', drawSpotMarker);
+
+    /**
+     * 실내에서 일을 보는 자리 (§10).
+     *
+     * 빈 바닥 한 칸이라 그 위에 서야만 프롬프트가 떴다 — 어디서 거래하고
+     * 어디서 증축하는지 몰라 계속 지나치게 된다. 표를 세우고 이름을 붙인다.
+     * 지역 노드와 달리 흔들지 않는다. 실내에서 계속 까딱거리면 어지럽다.
+     */
+    for (const obj of map.objects) {
+      if (obj.type !== 'node') continue;
+      if (obj.nodeKind !== undefined) continue;
+      const isSpot = obj.shop === true || obj.room !== undefined || obj.building !== undefined;
+      if (!isSpot) continue;
+
+      const spot = this.add.image(worldX(obj.x), worldY(obj.y), 'marker:spot');
+      spot.setOrigin(0.5, 1);
+      // 주인공보다 뒤에 둔다. 밟고 서면 사람이 가려지면 안 된다
+      spot.setDepth(worldY(obj.y) - 1);
+      this.markerLayer.add(spot);
+      this.makeNameTag(spot, obj.label ?? '');
+    }
 
     for (const obj of map.objects) {
       if (obj.nodeKind === undefined) continue;
@@ -456,7 +483,10 @@ export class FieldScene extends Phaser.Scene {
    *
    * 글씨는 화면 픽셀로 굽고 1/배율로 줄인다. 카메라가 2배로 당기니 1:1 이 된다.
    */
-  private makeNameTag(owner: Phaser.GameObjects.Sprite, text: string): void {
+  private makeNameTag(
+    owner: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject,
+    text: string,
+  ): void {
     if (text === '') return;
 
     const tag = this.add.text(owner.x, owner.y + 2, text, {

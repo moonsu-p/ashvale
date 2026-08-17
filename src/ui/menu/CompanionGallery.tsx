@@ -93,7 +93,7 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
       >
         {media !== null ? (
           media.video ? (
-            <LoopVideo src={media.url} className="h-full w-full object-cover" />
+            <LoopVideo src={media.url} className="h-full w-full" />
           ) : (
             <img src={media.url} alt="" className="h-full w-full object-cover" />
           )

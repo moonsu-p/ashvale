@@ -29,7 +29,10 @@ function findCompanion(
  */
 export type PortraitMedia = { url: string; video: boolean } | null;
 
-export function usePortraitImage(portrait: PortraitRef): PortraitMedia {
+export function usePortraitImage(
+  portrait: PortraitRef,
+  revealSlot: number | null = null,
+): PortraitMedia {
   const companions = useGameStore((s) => s.state?.companions);
   const [media, setMedia] = useState<PortraitMedia>(null);
 
@@ -40,7 +43,11 @@ export function usePortraitImage(portrait: PortraitRef): PortraitMedia {
         ? findCompanion(companions, portrait.speaker.id)
         : undefined;
 
-    const key = resolveImageKey(record?.images, portrait.wantSlot, record?.pickedSlot);
+    // 여운 자리가 지정돼 있으면 그것이 먼저다. 사건의 결과로 그림이 바뀌는 순간이다
+    const key =
+      revealSlot !== null
+        ? resolveImageKey(record?.images, portrait.wantSlot, revealSlot)
+        : resolveImageKey(record?.images, portrait.wantSlot, record?.pickedSlot);
     if (key === null) {
       setMedia(null);
       return;
@@ -63,7 +70,7 @@ export function usePortraitImage(portrait: PortraitRef): PortraitMedia {
       alive = false;
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [companions, portrait.speaker.kind, portrait.speaker.id, portrait.wantSlot]);
+  }, [companions, portrait.speaker.kind, portrait.speaker.id, portrait.wantSlot, revealSlot]);
 
   return media;
 }

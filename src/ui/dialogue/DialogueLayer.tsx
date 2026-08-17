@@ -34,7 +34,7 @@ function OpenDialogue({ dialogue }: { dialogue: DialogueState }) {
   const choose = useGameStore((s) => s.chooseDialogue);
 
   const { script, lineIndex, phase, reply } = dialogue;
-  const media = usePortraitImage(script.portrait);
+  const media = usePortraitImage(script.portrait, dialogue.revealSlot);
 
   // A 버튼과 Space/Enter 가 여기로 들어온다. 필드는 이 동안 멈춰 있다
   useEffect(() => onActionPress(() => advance()), [advance]);
