@@ -9,7 +9,15 @@
  */
 
 import { PALETTE } from '@/data/palette';
-import { ACCEPTED_TYPES, MAX_SOURCE_BYTES, WEBP_QUALITY, targetSize } from '@/data/images';
+import {
+  ACCEPTED_TYPES,
+  ACCEPTED_VIDEO_TYPES,
+  MAX_SOURCE_BYTES,
+  MAX_VIDEO_BYTES,
+  WEBP_QUALITY,
+  isVideoType,
+  targetSize,
+} from '@/data/images';
 
 export type EncodeFailure = 'type' | 'too-big' | 'decode' | 'encode';
 
@@ -36,8 +44,14 @@ export interface EncodedImage {
  * 얼굴이 잘려 나가는 것보다 여백이 낫다.
  */
 export async function encodeForSlot(file: File, slot: number): Promise<EncodedImage> {
+  // 영상은 다시 구울 수 없다. 따로 간다
+  if (isVideoType(file.type)) return copyVideo(file);
+
   if (!ACCEPTED_TYPES.includes(file.type)) {
-    throw new ImageError('type', 'PNG, JPEG, WebP 만 넣을 수 있습니다. 다른 사진을 골라 주세요.');
+    throw new ImageError(
+      'type',
+      'PNG, JPEG, WebP, MP4 만 넣을 수 있습니다. 다른 파일을 골라 주세요.',
+    );
   }
   if (file.size > MAX_SOURCE_BYTES) {
     const mb = (MAX_SOURCE_BYTES / 1024 / 1024).toFixed(0);
@@ -82,4 +96,73 @@ export async function encodeForSlot(file: File, slot: number): Promise<EncodedIm
     // 비트맵은 GC 를 기다리지 않고 바로 놓는다
     bitmap.close();
   }
+}
+
+/**
+ * 영상을 슬롯에 넣는다 (§9.1).
+ *
+ * **다시 굽지 않는다.** 브라우저에는 영상을 줄여 다시 인코딩할 방법이
+ * 마땅치 않다 — WebCodecs 로 하려면 코덱 지원을 따져야 하고, 실패하면
+ * 아무것도 못 넣는 쪽이 된다. 그래서 바이트를 **복사만** 한다.
+ *
+ * 복사는 §9.1 을 지키는 데 꼭 필요하다. File 을 그대로 넣으면 원본 파일을
+ * 가리키게 되고, 사진첩에서 지우면 게임 안 영상도 깨진다.
+ * ArrayBuffer 로 읽어 새 Blob 을 만들면 그 참조가 끊긴다.
+ *
+ * 다시 굽지 않으니 EXIF 같은 메타데이터도 그대로 남는다. 위치 정보가 붙어
+ * 있을 수 있지만 이 앱은 아무것도 밖으로 보내지 않으므로(§14 비통신)
+ * 기기 밖으로 나가지 않는다. 꾸러미로 내보낼 때만 따라 나간다.
+ */
+async function copyVideo(file: File): Promise<EncodedImage> {
+  if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+    throw new ImageError('type', 'MP4 만 넣을 수 있습니다. 다른 영상을 골라 주세요.');
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    const mb = Math.round(MAX_VIDEO_BYTES / (1024 * 1024));
+    throw new ImageError(
+      'too-big',
+      `영상이 ${mb}MB 를 넘습니다. 더 짧게 자르거나 화질을 낮춰 주세요.`,
+    );
+  }
+
+  // 여기서 원본과의 끈이 끊긴다
+  const bytes = await file.arrayBuffer();
+  const blob = new Blob([bytes], { type: file.type });
+
+  // 정말 재생되는지 본다. 확장자만 바꾼 파일을 조용히 받아들이지 않는다
+  const size = await videoSize(blob);
+  return { blob, width: size.width, height: size.height, bytes: blob.size };
+}
+
+/** 영상의 크기를 읽는다. 메타데이터까지만 읽고 끝낸다 */
+function videoSize(blob: Blob): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+
+    const done = (fn: () => void) => {
+      video.removeAttribute('src');
+      URL.revokeObjectURL(url);
+      fn();
+    };
+
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      done(() =>
+        width > 0 && height > 0
+          ? resolve({ width, height })
+          : reject(new ImageError('decode', '영상을 읽지 못했습니다. 다른 파일을 골라 주세요.')),
+      );
+    };
+    video.onerror = () => {
+      done(() =>
+        reject(new ImageError('decode', '영상을 읽지 못했습니다. 다른 파일을 골라 주세요.')),
+      );
+    };
+
+    video.src = url;
+  });
 }

@@ -11,17 +11,31 @@ import { useEffect, useRef, useState } from 'react';
 import type { CompanionRecord } from '@/types/game';
 import { useGameStore } from '@/store/useGameStore';
 import { getArchetype } from '@/data/archetypes';
-import { ACCEPT_ATTR, AFTER_UPLOAD_NOTE, SLOT_COUNT, SLOT_LABEL } from '@/data/images';
+import { LoopVideo } from '../LoopVideo';
+import {
+  ACCEPT_ATTR,
+  AFTER_UPLOAD_NOTE,
+  SLOT_COUNT,
+  SLOT_LABEL,
+  isVideoType,
+} from '@/data/images';
 import { getStorage } from '@/storage';
 import { stageFor } from '@/systems/relationships';
 
 /** 저장된 Blob 을 화면에 걸 주소로. 떠날 때 반드시 되돌린다 */
-function useBlobUrl(key: string | null): string | null {
-  const [url, setUrl] = useState<string | null>(null);
+/**
+ * 슬롯에 담긴 것. 그림일 수도 영상일 수도 있다 (§9.1).
+ *
+ * 종류를 세이브에 적지 않는다 — Blob 이 형식을 들고 있으므로 꺼낼 때 보면 된다.
+ */
+type Media = { url: string; video: boolean } | null;
+
+function useBlobUrl(key: string | null): Media {
+  const [media, setMedia] = useState<Media>(null);
 
   useEffect(() => {
     if (key === null) {
-      setUrl(null);
+      setMedia(null);
       return;
     }
     let alive = true;
@@ -32,9 +46,10 @@ function useBlobUrl(key: string | null): string | null {
       .then((blob) => {
         if (!alive || blob === null) return;
         made = URL.createObjectURL(blob);
-        setUrl(made);
+        // 형식은 Blob 이 들고 있다. 세이브에 따로 적어 두지 않는다
+        setMedia({ url: made, video: isVideoType(blob.type) });
       })
-      .catch(() => setUrl(null));
+      .catch(() => setMedia(null));
 
     return () => {
       alive = false;
@@ -43,7 +58,7 @@ function useBlobUrl(key: string | null): string | null {
     };
   }, [key]);
 
-  return url;
+  return media;
 }
 
 function Slot({ companion, slot }: { companion: CompanionRecord; slot: number }) {
@@ -53,7 +68,7 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
   const [busy, setBusy] = useState(false);
 
   const key = companion.images[slot] ?? null;
-  const url = useBlobUrl(key);
+  const media = useBlobUrl(key);
   const unlocked = companion.unlockedSlots.includes(slot);
 
   return (
@@ -64,8 +79,12 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
         onClick={() => input.current?.click()}
         className="relative aspect-[3/4] overflow-hidden rounded border border-stoneDark bg-paperDim disabled:opacity-40"
       >
-        {url !== null ? (
-          <img src={url} alt="" className="h-full w-full object-cover" />
+        {media !== null ? (
+          media.video ? (
+            <LoopVideo src={media.url} className="h-full w-full object-cover" />
+          ) : (
+            <img src={media.url} alt="" className="h-full w-full object-cover" />
+          )
         ) : (
           <span className="grid h-full w-full place-items-center text-[10px] text-inkSoft">
             {unlocked ? (busy ? '넣는 중' : '+') : '잠김'}

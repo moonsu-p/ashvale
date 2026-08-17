@@ -11,7 +11,7 @@
  */
 
 import type { GameState, Ledger } from '@/types/game';
-import { imageFileName, imageKey } from '@/data/images';
+import { imageFileName, imageKey, mimeForExtension } from '@/data/images';
 import { makeZip, readZip, ZipError, type ZipEntry } from '@/lib/zip';
 import { migrate } from './migrate';
 import { loadLedger, saveGame, saveLedger } from './persist';
@@ -43,7 +43,8 @@ export async function exportBundle(
       const blob = await adapter.getImage(key);
       if (blob === null) continue;
       entries.push({
-        name: imageFileName(companion.id, Number(slotText)),
+        // 확장자는 Blob 의 형식에서 나온다. 영상이면 .mp4 로 나간다
+        name: imageFileName(companion.id, Number(slotText), blob.type),
         data: new Uint8Array(await blob.arrayBuffer()),
       });
     }
@@ -107,8 +108,14 @@ export async function importBundle(adapter: StorageAdapter, file: Blob): Promise
   // 이미지. 키를 다시 계산해서 세이브의 참조와 반드시 맞춘다
   let images = 0;
   for (const entry of entries) {
-    if (!entry.name.startsWith(IMAGE_PREFIX) || !entry.name.endsWith('.webp')) continue;
-    const stem = entry.name.slice(IMAGE_PREFIX.length, -'.webp'.length);
+    if (!entry.name.startsWith(IMAGE_PREFIX)) continue;
+
+    // 확장자로 형식을 되살린다. 이게 없으면 영상을 image/webp 로 담아 재생이 안 된다
+    const named = /^(.+)\.(webp|mp4)$/.exec(entry.name.slice(IMAGE_PREFIX.length));
+    if (named === null) continue;
+    const [, stem, ext] = named;
+    if (stem === undefined || ext === undefined) continue;
+
     const match = /^companion_(.+)_slot_(\d+)$/.exec(stem);
     if (match === null) continue;
 
@@ -117,7 +124,7 @@ export async function importBundle(adapter: StorageAdapter, file: Blob): Promise
 
     const key = imageKey(companionId, Number(slotText));
     // subarray 는 원본 버퍼를 공유한다. Blob 으로 만들며 잘라 담는다
-    await adapter.putImage(key, new Blob([entry.data.slice()], { type: 'image/webp' }));
+    await adapter.putImage(key, new Blob([entry.data.slice()], { type: mimeForExtension(ext) }));
     images += 1;
   }
 

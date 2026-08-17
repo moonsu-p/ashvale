@@ -5,12 +5,34 @@
  * content:// URI, File 핸들, 파일 경로 — 원본을 가리키는 값은 아무것도 저장하지 않는다.
  */
 
-/** 받아들이는 형식 */
+/** 받아들이는 그림 형식 */
 export const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-export const ACCEPT_ATTR = ACCEPTED_TYPES.join(',');
+
+/**
+ * 받아들이는 영상 형식.
+ *
+ * mp4 하나만 받는다. 안드로이드 크롬이 확실히 재생하고,
+ * 폰 사진첩이 내놓는 것도 대개 이것이다.
+ */
+export const ACCEPTED_VIDEO_TYPES = ['video/mp4'];
+
+export const ACCEPT_ATTR = [...ACCEPTED_TYPES, ...ACCEPTED_VIDEO_TYPES].join(',');
+
+export function isVideoType(mime: string): boolean {
+  return ACCEPTED_VIDEO_TYPES.includes(mime);
+}
 
 /** 원본 8MB 이하 */
 export const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * 영상은 이보다 커질 수 없다.
+ *
+ * 그림보다 넉넉하게 두되 한정은 한다. **영상은 다시 굽지 않기 때문이다** —
+ * 캔버스로 줄일 수 있는 그림과 달리 들어온 바이트가 그대로 쌓인다.
+ * 슬롯이 48개(8명 × 6)라 상한이 없으면 한 사람이 저장소를 다 먹는다.
+ */
+export const MAX_VIDEO_BYTES = 16 * 1024 * 1024;
 
 /** WebP 재인코딩 품질 */
 export const WEBP_QUALITY = 0.85;
@@ -46,8 +68,18 @@ export function imageKey(companionId: string, slot: number): string {
   return `companion_${companionId}_slot_${slot}`;
 }
 
-export function imageFileName(companionId: string, slot: number): string {
-  return `images/${imageKey(companionId, slot)}.webp`;
+/** 꾸러미 안의 확장자. 불러올 때 이걸로 형식을 되살린다 */
+export function extensionFor(mime: string): string {
+  return isVideoType(mime) ? 'mp4' : 'webp';
+}
+
+/** 확장자 -> MIME. 꾸러미를 불러올 때 쓴다 */
+export function mimeForExtension(ext: string): string {
+  return ext === 'mp4' ? 'video/mp4' : 'image/webp';
+}
+
+export function imageFileName(companionId: string, slot: number, mime: string): string {
+  return `images/${imageKey(companionId, slot)}.${extensionFor(mime)}`;
 }
 
 /** 업로드를 마치고 한 줄 안내한다 (§9.3) */

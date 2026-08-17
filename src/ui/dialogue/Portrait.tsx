@@ -15,14 +15,16 @@ import {
 } from '@/data/dialogue';
 import { useReducedMotion } from '../useReducedMotion';
 import { Silhouette } from './Silhouette';
+import { LoopVideo } from '../LoopVideo';
+import type { PortraitMedia } from './usePortraitImage';
 
 interface Props {
   portrait: PortraitRef;
-  /** 해석된 이미지. 아직 업로드 기능이 없어 항상 null 이다 */
-  imageUrl?: string | null;
+  /** 해석된 그림 또는 영상. 없으면 원형 실루엣으로 간다 */
+  media?: PortraitMedia;
 }
 
-export function Portrait({ portrait, imageUrl = null }: Props) {
+export function Portrait({ portrait, media = null }: Props) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(reduced);
 
@@ -49,10 +51,12 @@ export function Portrait({ portrait, imageUrl = null }: Props) {
           : `opacity ${PORTRAIT_FADE_MS}ms ease-out, transform ${PORTRAIT_FADE_MS}ms ease-out`,
       }}
     >
-      {imageUrl === null ? (
+      {media === null ? (
         <Silhouette label={portrait.label} />
+      ) : media.video ? (
+        <LoopVideo src={media.url} className="h-full w-full object-cover" />
       ) : (
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        <img src={media.url} alt="" className="h-full w-full object-cover" />
       )}
     </div>
   );

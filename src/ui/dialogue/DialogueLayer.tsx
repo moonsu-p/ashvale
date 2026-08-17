@@ -24,8 +24,8 @@ export function DialogueLayer() {
 
 /** 오른쪽에 서는 사람. 훅 규칙 때문에 따로 뗀다 */
 function SecondPortrait({ portrait }: { portrait: PortraitRef }) {
-  const url = usePortraitImage(portrait);
-  return <Portrait portrait={portrait} imageUrl={url} />;
+  const media = usePortraitImage(portrait);
+  return <Portrait portrait={portrait} media={media} />;
 }
 
 function OpenDialogue({ dialogue }: { dialogue: DialogueState }) {
@@ -34,7 +34,7 @@ function OpenDialogue({ dialogue }: { dialogue: DialogueState }) {
   const choose = useGameStore((s) => s.chooseDialogue);
 
   const { script, lineIndex, phase, reply } = dialogue;
-  const imageUrl = usePortraitImage(script.portrait);
+  const media = usePortraitImage(script.portrait);
 
   // A 버튼과 Space/Enter 가 여기로 들어온다. 필드는 이 동안 멈춰 있다
   useEffect(() => onActionPress(() => advance()), [advance]);
@@ -53,7 +53,7 @@ function OpenDialogue({ dialogue }: { dialogue: DialogueState }) {
       <div className="relative flex h-full flex-col justify-end gap-2 p-2">
         {/* 두 사람이 동시에 나오는 사건은 슬롯 0을 나란히 세운다 (§7.5) */}
         <div className="flex min-h-0 flex-1 items-end justify-center gap-2 pt-1">
-          <Portrait portrait={script.portrait} imageUrl={imageUrl} />
+          <Portrait portrait={script.portrait} media={media} />
           {script.secondPortrait !== undefined && (
             <SecondPortrait portrait={script.secondPortrait} />
           )}
