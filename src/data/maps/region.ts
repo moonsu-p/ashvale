@@ -70,51 +70,72 @@ export function buildRegionMap(regionId: string): TileMapData {
     put(W - 1, y, look.block, true);
   }
 
-  // 흩어진 장애물. 길이 막히지 않게 성기게 둔다
-  for (let i = 0; i < 26; i++) {
-    const x = rng.int(2, W - 3);
-    const y = rng.int(2, H - 3);
-    if (x === ENTRY_X) continue; // 입구에서 북쪽으로 난 길은 비워 둔다
+  /**
+   * ── 노드 자리 정하기 ──
+   *
+   * 전리품 2~3 + 사건 1 (§11). 무작위로 뿌리면 한쪽에 몰려서
+   * 지도의 절반이 빈 들판이 된다. 세로로 구간을 나눠 하나씩 놓는다.
+   */
+  const total = rng.int(NODE_COUNT.min, NODE_COUNT.max);
+  const lootCount = total - 1;
+  const band = Math.floor((H - 4) / total);
+
+  const spots: { x: number; y: number }[] = [];
+  for (let i = 0; i < total; i++) {
+    // 입구에서 먼 쪽부터 채운다. 안쪽으로 들어갈수록 볼 게 있어야 한다
+    const y = 2 + i * band + rng.int(0, Math.max(0, band - 1));
+    const left = rng.chance(0.5);
+    const x = left ? rng.int(2, ENTRY_X - 2) : rng.int(ENTRY_X + 2, W - 3);
+    spots.push({ x, y: Math.min(y, H - 4) });
+  }
+
+  /**
+   * ── 길 내기 ──
+   *
+   * 입구에서 북쪽으로 등뼈를 하나 세우고, 거기서 각 표식으로 가지를 뻗는다.
+   * 길이 없으면 표식이 보여도 들판을 가로지르게 되어 걷는 맛이 없다.
+   */
+  const trail = new Set<string>();
+  const carve = (x: number, y: number) => {
+    trail.add(`${x},${y}`);
+    put(x, y, 'path', false);
+  };
+
+  const spineTop = Math.min(...spots.map((s) => s.y));
+  for (let y = H - 2; y >= spineTop; y--) carve(ENTRY_X, y);
+
+  for (const spot of spots) {
+    const step = spot.x < ENTRY_X ? -1 : 1;
+    for (let x = ENTRY_X; x !== spot.x + step; x += step) carve(x, spot.y);
+  }
+
+  // 흩어진 장애물. 길과 표식 자리는 비켜 간다
+  for (let i = 0; i < 30; i++) {
+    const x = rng.int(1, W - 2);
+    const y = rng.int(1, H - 2);
+    if (trail.has(`${x},${y}`)) continue;
     put(x, y, look.block, true);
   }
 
-  // 입구에서 위로 뻗는 길은 반드시 열어 둔다
-  for (let y = 1; y < H - 1; y++) put(ENTRY_X, y, look.accent, false);
   put(ENTRY_X, H - 1, 'gateway', false);
 
   const objects: MapObject[] = [
     { id: 'exit', type: 'gateway', x: ENTRY_X, y: H - 1, target: 'town', solid: false },
   ];
 
-  // ── 사건 노드 ──────────────────────────────────────
-  // 전리품 노드 2~3 + 사건 노드 1 (§11)
-  const total = rng.int(NODE_COUNT.min, NODE_COUNT.max);
-  const lootCount = total - 1;
-
-  const taken = new Set<string>();
-  for (let i = 0; i < total; i++) {
-    let x = 0;
-    let y = 0;
-    let tries = 0;
-    do {
-      x = rng.int(1, W - 2);
-      y = rng.int(1, H - 3);
-      tries += 1;
-    } while ((collision[at(x, y)] === true || taken.has(`${x},${y}`)) && tries < 60);
-
-    if (collision[at(x, y)] === true) continue;
-    taken.add(`${x},${y}`);
-
+  spots.forEach((spot, i) => {
+    // 길 위에 놓았으니 막힐 일이 없다
+    collision[at(spot.x, spot.y)] = false;
     objects.push({
       id: `node-${i}`,
       type: 'node',
-      x,
-      y,
+      x: spot.x,
+      y: spot.y,
       // 밟으면 판정이다 (§11). 막지 않는다
       solid: false,
       nodeKind: i < lootCount ? 'loot' : 'event',
     });
-  }
+  });
 
   return { id: regionMapId(regionId), width: W, height: H, ground, deco, collision, objects };
 }
