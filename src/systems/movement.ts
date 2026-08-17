@@ -119,6 +119,8 @@ function labelFor(
   buildings: Record<string, number> | undefined,
   indoors: boolean,
 ): string {
+  if (object.shop === true) return '거래';
+
   if (object.building !== undefined) {
     const level = buildings?.[object.building] ?? 0;
     if (level === 0) return '건설';
@@ -148,10 +150,14 @@ export function interactionAt(
     return { object: faced, label: labelFor(faced, buildings, indoors) };
   }
 
+  // 밟고 선 칸도 본다 — 문·길목·건물 부지·판매대는 그 위에 서서 누른다
   const under = objectAt(map, hero.x, hero.y);
   if (
     under !== undefined &&
-    (under.type === 'door' || under.type === 'gateway' || under.building !== undefined)
+    (under.type === 'door' ||
+      under.type === 'gateway' ||
+      under.building !== undefined ||
+      under.shop === true)
   ) {
     return { object: under, label: labelFor(under, buildings, indoors) };
   }

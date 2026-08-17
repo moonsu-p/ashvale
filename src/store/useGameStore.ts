@@ -159,8 +159,8 @@ interface GameStore {
   giveGift: (companionId: string, giftId: string) => void;
 
   /** 상단 HUD 를 눌러 여는 메뉴 (§5) */
-  menu: 'companions' | 'market' | 'chronicle' | 'bundle' | 'settings' | null;
-  openMenu: (tab: 'companions' | 'market' | 'chronicle' | 'bundle' | 'settings') => void;
+  menu: 'companions' | 'chronicle' | 'bundle' | 'settings' | null;
+  openMenu: (tab: 'companions' | 'chronicle' | 'bundle' | 'settings') => void;
   closeMenu: () => void;
 
   /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
@@ -190,6 +190,11 @@ interface GameStore {
   /** 노드를 밟았다 → 판정 */
   stepNode: (nodeId: string) => void;
   closeExplore: () => void;
+
+  /** 시장 판매대가 열려 있는가. 메뉴가 아니라 시장 안에서 연다 (§10) */
+  shop: boolean;
+  openShop: () => void;
+  closeShop: () => void;
 
   /** 열려 있는 건설·증축 패널의 건물 id */
   buildPanel: string | null;
@@ -266,6 +271,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   hint: null,
   dialogue: null,
   buildPanel: null,
+  shop: false,
   regionSelect: false,
   explore: null,
   clearedNodes: [],
@@ -1055,6 +1061,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       void get().save('map-change');
     }
+  },
+
+  openShop() {
+    set({ shop: true });
+  },
+
+  closeShop() {
+    set({ shop: false });
   },
 
   openBuildPanel(buildingId) {

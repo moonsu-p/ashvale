@@ -8,6 +8,7 @@
 
 import type { CompanionOrigin, CompanionRecord, GameState } from '@/types/game';
 import { ARCHETYPES, COMPANION_LIMIT, getArchetype } from '@/data/archetypes';
+import { LODGE_SLOTS_PER_LEVEL } from '@/data/buildings';
 
 /** 지금 명단에 있는(떠나지 않은) 인원 */
 export function rosterSize(state: GameState): number {
@@ -30,6 +31,22 @@ function nextArchetype(state: GameState): string {
   );
   const fresh = ARCHETYPES.find((a) => !used.has(a.id));
   return fresh?.id ?? ARCHETYPES[0]?.id ?? 'knight';
+}
+
+/**
+ * 숙소에 상주하는 인물 (§7.4, §10).
+ *
+ * 고백을 받아들이면 마을에 상주 위치가 생긴다 — 그게 숙소다.
+ * 자리는 숙소 레벨당 둘. 자리가 없으면 아직 들어오지 못한다.
+ */
+export function residentsOf(state: GameState): CompanionRecord[] {
+  const capacity = (state.town.buildings['lodge'] ?? 0) * LODGE_SLOTS_PER_LEVEL;
+  if (capacity <= 0) return [];
+
+  return Object.values(state.companions)
+    .filter((c) => c.departedTurn === null && c.track === 'romance' && c.confessed === 'accepted')
+    .sort((a, b) => b.affinity - a.affinity)
+    .slice(0, capacity);
 }
 
 export interface RosterGrowth {

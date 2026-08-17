@@ -162,3 +162,6 @@ export const FOOD_PER_POP = 1;
 
 /** 신전 레벨당 주간 HP 회복 (§10). 주 종료 3단계 '회복' 이 읽는다 */
 export const SHRINE_HEAL_PER_LEVEL = 2;
+
+/** 숙소 레벨당 관계 대상 상주 자리 (§10) */
+export const LODGE_SLOTS_PER_LEVEL = 2;

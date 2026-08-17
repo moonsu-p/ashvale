@@ -17,27 +17,22 @@ const LABEL: Record<ResourceId, string> = { wood: '목재', stone: '석재', foo
 const STEP = 6;
 
 export function MarketPanel() {
+  const open = useGameStore((s) => s.shop);
+  const close = useGameStore((s) => s.closeShop);
   const state = useGameStore((s) => s.state);
   const traded = useGameStore((s) => s.tradedThisWeek);
   const sell = useGameStore((s) => s.sellResource);
   const buy = useGameStore((s) => s.buyResource);
   const give = useGameStore((s) => s.giveGift);
 
-  if (state === null) return null;
-
-  if (marketLevel(state) <= 0) {
-    return (
-      <p className="text-[12px] leading-relaxed text-inkSoft">
-        시장이 없습니다. 성장기에 시장 부지가 열리고, 그것을 세우면 교역과 선물이 열립니다.
-      </p>
-    );
-  }
+  if (!open || state === null || marketLevel(state) <= 0) return null;
 
   const limit = weeklyLimit(state);
   const companions = Object.values(state.companions).filter((c) => c.departedTurn === null);
 
   return (
-    <div className="space-y-3 text-[12px]">
+    <div className="absolute inset-0 z-30 flex flex-col bg-ink/80 p-3">
+      <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto rounded border border-stoneDark bg-paper p-3 text-[12px] text-ink">
       <div className="flex justify-between border-b border-stoneDark/30 pb-1">
         <span className="text-inkSoft">이번 주 거래</span>
         <span className="tabular-nums">
@@ -105,6 +100,16 @@ export function MarketPanel() {
           ))
         )}
       </section>
+
+        <button
+          type="button"
+          onClick={close}
+          style={{ minHeight: TOUCH_MIN }}
+          className="mt-auto shrink-0 rounded border border-stoneDark bg-paperDim text-[13px]"
+        >
+          닫기
+        </button>
+      </div>
     </div>
   );
 }

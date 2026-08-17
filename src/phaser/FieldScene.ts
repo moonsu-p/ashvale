@@ -16,6 +16,7 @@ import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
 import { isBlocked, loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
+import { residentsOf } from '@/systems/roster';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
 import { readInput } from './inputBus';
@@ -129,6 +130,8 @@ export class FieldScene extends Phaser.Scene {
       mapId: state.world.currentMap,
       eraIndex: state.world.eraIndex,
       buildings: state.town.buildings,
+      // 숙소에 누가 사는지는 관계 상태에서 나온다 (§7.4)
+      residents: residentsOf(state).map((c) => ({ id: c.id, archetypeId: c.archetypeId })),
     };
 
     // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다

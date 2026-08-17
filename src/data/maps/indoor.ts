@@ -53,6 +53,15 @@ function patronSprite(patronId: string): string {
 export interface IndoorContext {
   buildingId: string;
   eraIndex: number;
+  /** 숙소에 상주하는 인물 (§7.4 수락 → 마을에 상주 위치가 생긴다) */
+  residents?: { id: string; archetypeId: string }[];
+}
+
+function companionSprite(archetypeId: string): string {
+  return (
+    CHAR_ROSTER.find((s) => s.role === 'companion' && s.bind === archetypeId)?.spriteId ??
+    'char.comp.1'
+  );
 }
 
 export function buildIndoorMap(ctx: IndoorContext): TileMapData {
@@ -106,6 +115,39 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     solid: false,
     building: ctx.buildingId,
   });
+
+  // 시장 — 판매대에서 교역과 선물을 본다 (§10)
+  if (ctx.buildingId === 'market') {
+    objects.push({
+      id: 'market-counter',
+      type: 'node',
+      x: EXIT_X,
+      y: 3,
+      solid: false,
+      shop: true,
+    });
+  }
+
+  /**
+   * 숙소 — 상주하는 인물이 여기 산다 (§10 관계 대상 상주 자리, §7.4).
+   * 고백을 받아들이면 마을에 상주 위치가 생긴다. 그게 여기다 —
+   * 찾아갈 데가 생겨야 관계가 자리를 얻는다.
+   */
+  if (ctx.buildingId === 'lodge') {
+    (ctx.residents ?? []).forEach((who, i) => {
+      const x = 3 + i * 3;
+      if (x >= W - 2) return;
+      objects.push({
+        id: `resident-${who.id}`,
+        type: 'npc',
+        x,
+        y: 4,
+        sprite: companionSprite(who.archetypeId),
+        voice: { kind: 'companion', id: who.archetypeId },
+        solid: true,
+      });
+    });
+  }
 
   // 의뢰인은 회관에 상주한다 (§7.6, §10)
   if (ctx.buildingId === 'hall') {

@@ -61,6 +61,8 @@ export interface MapObject {
   building?: string;
   /** 지역 사건 노드의 종류 (§11). 밟으면 판정이 돈다 */
   nodeKind?: 'loot' | 'event' | 'escort';
+  /** 시장 판매대. 여기 서서 A 를 누르면 교역·선물 (§10) */
+  shop?: boolean;
   /** 지나갈 수 없는가. 인물은 밀어서 지나갈 수 없다 (§5) */
   solid?: boolean;
 }

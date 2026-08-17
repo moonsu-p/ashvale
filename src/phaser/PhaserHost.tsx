@@ -69,6 +69,12 @@ export function PhaserHost() {
           return;
         }
 
+        // 시장 판매대 (§10) — 교역과 선물
+        if (object.shop === true) {
+          store.openShop();
+          return;
+        }
+
         /**
          * 사건 노드는 밟으면 발동한다 (§11). 다만 마주 보고 섰을 때도
          * '살펴보기' 프롬프트가 뜬다 — 그때 A 가 아무 일도 안 하면
@@ -164,6 +170,7 @@ export function PhaserHost() {
         s.buildPanel !== null ||
         s.regionSelect ||
         s.explore !== null ||
+        s.shop ||
         s.menu !== null;
       if (busy !== wasTalking) {
         wasTalking = busy;

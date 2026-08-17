@@ -25,6 +25,8 @@ import { regionIdFromMap } from '@/data/regions';
  */
 export interface MapContext extends TownContext {
   mapId: string;
+  /** 숙소에 서 있을 인물 (§7.4). 실내 맵에서만 쓴다 */
+  residents?: { id: string; archetypeId: string }[];
 }
 
 const cache = new Map<string, TileMapData>();
@@ -32,8 +34,11 @@ const cache = new Map<string, TileMapData>();
 /** 같은 열쇠면 같은 맵이다. 씬이 다시 그릴지 판단할 때도 쓴다 */
 export function mapKey(ctx: MapContext): string {
   if (ctx.mapId === 'town') return townKey(ctx);
-  // 실내는 시대에 따라 서 있는 의뢰인이 달라진다
-  if (buildingIdFromIndoor(ctx.mapId) !== null) return `${ctx.mapId}:${ctx.eraIndex}`;
+  // 실내는 시대에 따라 의뢰인이, 숙소는 상주하는 인물이 달라진다
+  if (buildingIdFromIndoor(ctx.mapId) !== null) {
+    const who = (ctx.residents ?? []).map((r) => r.id).join(',');
+    return `${ctx.mapId}:${ctx.eraIndex}:${who}`;
+  }
   return ctx.mapId;
 }
 
@@ -51,7 +56,11 @@ export function loadMap(ctx: MapContext): TileMapData {
   } else if (regionId !== null) {
     map = buildRegionMap(regionId);
   } else if (indoorOf !== null) {
-    map = buildIndoorMap({ buildingId: indoorOf, eraIndex: ctx.eraIndex });
+    map = buildIndoorMap({
+      buildingId: indoorOf,
+      eraIndex: ctx.eraIndex,
+      ...(ctx.residents !== undefined ? { residents: ctx.residents } : {}),
+    });
   } else {
     throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);
   }

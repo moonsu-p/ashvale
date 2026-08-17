@@ -16,6 +16,7 @@ import { ExploreResult } from './ExploreResult';
 import { Toast } from './Toast';
 import { FamineBanner } from './FamineBanner';
 import { Hint } from './Hint';
+import { MarketPanel } from './menu/MarketPanel';
 
 interface Props {
   prompt: string | null;
@@ -35,6 +36,7 @@ export function FieldBand({ prompt, talking }: Props) {
       <Toast />
       <FamineBanner />
       <Hint />
+      <MarketPanel />
     </main>
   );
 }
