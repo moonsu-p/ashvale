@@ -47,6 +47,21 @@ export interface CompanionRecord {
   injuredUntilTurn: number;
   /** slot -> IndexedDB 키. 이미지 자체가 아니라 **참조만** 넣는다 */
   images: Record<number, string | null>;
+  /**
+   * 화면에 쓸 슬롯. 플레이어가 고른다.
+   *
+   * **§4 에 없던 칸이다.** §8.2 의 해금 사다리는 구현된 적이 없다 —
+   * `unlockedSlots` 는 [0] 으로 시작하고 이를 늘리는 곳은 고백 수락 때
+   * 4번을 더하는 자리 하나뿐인데, 4번을 요청하는 대사가 없다. 그래서
+   * 여섯 자리 중 0번만 평생 보였다. 사다리를 짜 맞추는 대신 **고르게** 한다.
+   */
+  pickedSlot: number;
+  /**
+   * 열린 슬롯 (§8.2).
+   *
+   * 지금은 아무것도 잠그지 않는다 — 여섯 자리를 다 채울 수 있다.
+   * 값은 옛 세이브와의 호환을 위해 남겨 둔다.
+   */
   unlockedSlots: number[];
   homeRegion: string;
   origin: CompanionOrigin;
@@ -133,7 +148,7 @@ export interface Counters {
 }
 
 export interface GameState {
-  schemaVersion: 4;
+  schemaVersion: 5;
   createdAt: number;
 
   hero: HeroState;

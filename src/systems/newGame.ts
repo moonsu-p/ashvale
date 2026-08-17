@@ -80,7 +80,8 @@ export function newGame(input: NewGameInput): GameState {
           lastApproachTurn: 0,
           injuredUntilTurn: 0,
           images: {},
-          // 기본 초상 자리만 열려 있다. 나머지는 호감으로 열린다 (§8.2)
+          // 여섯 자리 중 어느 것을 보일지. 기본은 기본 초상
+          pickedSlot: 0,
           unlockedSlots: [0],
           homeRegion: getArchetype(seed.archetypeId)?.homeRegion ?? '',
           origin: 'preset' as const,

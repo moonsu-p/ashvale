@@ -84,3 +84,6 @@ export function imageFileName(companionId: string, slot: number, mime: string): 
 
 /** 업로드를 마치고 한 줄 안내한다 (§9.3) */
 export const AFTER_UPLOAD_NOTE = '사진첩의 원본은 지워도 됩니다.';
+
+/** 여섯 자리 중 어느 것이 대화에 나오는지 알려 준다 */
+export const PICK_NOTE = '채운 자리를 누르면 그것이 대화에 나옵니다. PNG·JPEG·WebP·MP4.';

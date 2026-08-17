@@ -45,6 +45,16 @@ const MIGRATIONS: Record<number, Migration> = {
       counters: { ...counters, tradedThisWeek: 0 },
     };
   },
+
+  /** 4 -> 5: CompanionRecord.pickedSlot 추가. 기본은 0번(기본 초상) */
+  4: (raw) => {
+    const companions = isRecord(raw['companions']) ? raw['companions'] : {};
+    const moved: Record<string, unknown> = {};
+    for (const [id, who] of Object.entries(companions)) {
+      moved[id] = isRecord(who) ? { ...who, pickedSlot: 0 } : who;
+    }
+    return { ...raw, schemaVersion: 5, companions: moved };
+  },
 };
 
 export type MigrateResult =

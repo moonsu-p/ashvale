@@ -185,6 +185,8 @@ interface GameStore {
 
   /** 인물 이미지 — 고른 즉시 WebP 로 다시 구워 저장한다 (§9.1) */
   putImage: (companionId: string, slot: number, file: File) => Promise<void>;
+  /** 여섯 슬롯 중 어느 것을 보일지 고른다 (§8.2) */
+  pickSlot: (companionId: string, slot: number) => void;
   clearImage: (companionId: string, slot: number) => Promise<void>;
   /** 꾸러미 내보내기. Blob 을 돌려주면 화면이 내려받기를 건다 */
   exportBundle: () => Promise<Blob | null>;
@@ -884,6 +886,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeMenu() {
     set({ menu: null });
+  },
+
+  pickSlot(companionId, slot) {
+    const { state } = get();
+    if (state === null) return;
+    const companion = state.companions[companionId];
+    if (companion === undefined) return;
+    // 비어 있는 자리를 고르게 두지 않는다. 골라 놓고 실루엣이 나오면 고장으로 보인다
+    const key = companion.images[slot];
+    if (key === null || key === undefined || key === '') return;
+
+    set({
+      state: {
+        ...state,
+        companions: { ...state.companions, [companionId]: { ...companion, pickedSlot: slot } },
+      },
+      error: null,
+    });
+    void get().save('relationship');
   },
 
   async putImage(companionId, slot, file) {

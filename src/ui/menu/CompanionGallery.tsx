@@ -15,6 +15,7 @@ import { LoopVideo } from '../LoopVideo';
 import {
   ACCEPT_ATTR,
   AFTER_UPLOAD_NOTE,
+  PICK_NOTE,
   SLOT_COUNT,
   SLOT_LABEL,
   isVideoType,
@@ -61,23 +62,34 @@ function useBlobUrl(key: string | null): Media {
   return media;
 }
 
+/**
+ * 슬롯 한 칸.
+ *
+ * **여섯 자리를 다 채울 수 있다.** §8.2 의 해금 사다리는 구현된 적이 없어
+ * 0번만 평생 보였다 — 잠가 두면 넣을 수도 없고 볼 수도 없다.
+ * 대신 채운 자리 중 하나를 **골라** 그것이 대화에 나온다.
+ */
 function Slot({ companion, slot }: { companion: CompanionRecord; slot: number }) {
   const put = useGameStore((s) => s.putImage);
   const clear = useGameStore((s) => s.clearImage);
+  const pick = useGameStore((s) => s.pickSlot);
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   const key = companion.images[slot] ?? null;
   const media = useBlobUrl(key);
-  const unlocked = companion.unlockedSlots.includes(slot);
+  const picked = companion.pickedSlot === slot;
 
   return (
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        disabled={!unlocked || busy}
-        onClick={() => input.current?.click()}
-        className="relative aspect-[3/4] overflow-hidden rounded border border-stoneDark bg-paperDim disabled:opacity-40"
+        disabled={busy}
+        // 채운 자리를 누르면 그것을 쓴다. 빈 자리를 누르면 파일을 고른다
+        onClick={() => (key === null ? input.current?.click() : pick(companion.id, slot))}
+        className={`relative aspect-[3/4] overflow-hidden rounded border bg-paperDim disabled:opacity-40 ${
+          picked && key !== null ? 'border-gold' : 'border-stoneDark'
+        }`}
       >
         {media !== null ? (
           media.video ? (
@@ -87,7 +99,14 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
           )
         ) : (
           <span className="grid h-full w-full place-items-center text-[10px] text-inkSoft">
-            {unlocked ? (busy ? '넣는 중' : '+') : '잠김'}
+            {busy ? '넣는 중' : '+'}
+          </span>
+        )}
+
+        {/* 지금 쓰는 자리를 표시한다. 테두리만으로는 작은 화면에서 안 보인다 */}
+        {picked && key !== null && (
+          <span className="absolute left-0 top-0 bg-gold px-1 text-[9px] font-medium text-ink">
+            사용 중
           </span>
         )}
       </button>
@@ -95,9 +114,18 @@ function Slot({ companion, slot }: { companion: CompanionRecord; slot: number })
       <div className="flex items-center justify-between text-[9px] text-inkSoft">
         <span>{SLOT_LABEL[slot]}</span>
         {key !== null && (
-          <button type="button" onClick={() => void clear(companion.id, slot)} className="text-blood">
-            비우기
-          </button>
+          <span className="flex gap-1">
+            <button type="button" onClick={() => input.current?.click()} className="text-inkSoft">
+              바꾸기
+            </button>
+            <button
+              type="button"
+              onClick={() => void clear(companion.id, slot)}
+              className="text-blood"
+            >
+              비우기
+            </button>
+          </span>
         )}
       </div>
 
@@ -167,6 +195,7 @@ export function CompanionGallery() {
 
   return (
     <div className="space-y-3">
+      <p className="text-[11px] text-inkSoft">{PICK_NOTE}</p>
       <p className="text-[11px] text-inkSoft">{AFTER_UPLOAD_NOTE}</p>
       {list.map((companion) => (
         <CompanionCard key={companion.id} companion={companion} />

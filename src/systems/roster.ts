@@ -77,6 +77,7 @@ export function addCompanion(state: GameState, origin: CompanionOrigin): RosterG
     lastApproachTurn: 0,
     injuredUntilTurn: 0,
     images: {},
+    pickedSlot: 0,
     unlockedSlots: [0],
     homeRegion: getArchetype(archetypeId)?.homeRegion ?? '',
     origin,

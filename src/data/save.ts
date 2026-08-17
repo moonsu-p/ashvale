@@ -11,8 +11,10 @@
  * 3 — hero.restUntilTurn 추가. 쓰러진 뒤 2주 탐사 불가(§11)를 담을 자리.
  * 4 — world.clearedNodes / counters.tradedThisWeek 추가. 둘 다 세션에만 있어서
  *     새로고침으로 되감을 수 있었다 — 표식 무한 채집과 거래 한도 우회.
+ * 5 — CompanionRecord.pickedSlot 추가. 여섯 슬롯 중 어느 것을 보일지
+ *     플레이어가 고른다. 해금 사다리가 구현된 적이 없어 0번만 보였다.
  */
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 /** 원장 스키마 판. 세이브와 따로 움직인다 */
 export const LEDGER_VERSION = 1 as const;

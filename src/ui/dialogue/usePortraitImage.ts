@@ -40,7 +40,7 @@ export function usePortraitImage(portrait: PortraitRef): PortraitMedia {
         ? findCompanion(companions, portrait.speaker.id)
         : undefined;
 
-    const key = resolveImageKey(record?.images, portrait.wantSlot);
+    const key = resolveImageKey(record?.images, portrait.wantSlot, record?.pickedSlot);
     if (key === null) {
       setMedia(null);
       return;
