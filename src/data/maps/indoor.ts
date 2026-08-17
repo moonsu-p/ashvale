@@ -96,13 +96,24 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     solid: false,
   });
 
-  // 안쪽 벽에 붙은 탁자. 여기 서서 증축한다
+  // 안쪽 벽에 붙은 탁자. 보기 위한 것이다
   for (let x = 2; x <= W - 3; x++) put(x, 2, 'counter', true);
+
+  /**
+   * 증축하는 자리 (§10).
+   *
+   * **문 안쪽 바로 그 칸에 둔다.** 예전에는 탁자 왼쪽 끝(2,3)에 있었다 —
+   * 실내가 있는 건물은 문 앞에서 A 를 누르면 들어와 버리므로 밖에서는
+   * 증축할 길이 없고, 안에서는 저 구석까지 걸어가야 프롬프트가 떴다.
+   * 회관과 숙소를 올릴 방법이 사실상 없었다.
+   *
+   * 여기 두면 들어선 순간 발밑에 잡혀 "A — 증축" 이 바로 보인다.
+   */
   objects.push({
     id: `indoor-desk-${ctx.buildingId}`,
     type: 'node',
-    x: 2,
-    y: 3,
+    x: INDOOR_ENTRY.x,
+    y: INDOOR_ENTRY.y,
     solid: false,
     building: ctx.buildingId,
   });

@@ -5,7 +5,7 @@
  * 다섯 방이 하나의 껍데기를 나눠 쓴다 — 제목과 안쪽만 다르다.
  */
 
-import type { GameState, StatId } from '@/types/game';
+import type { CompanionRecord, GameState, StatId } from '@/types/game';
 import type { RoomId } from '@/types/map';
 import { useGameStore } from '@/store/useGameStore';
 import { getRoom, OFFERING } from '@/data/rooms';
@@ -16,6 +16,7 @@ import { SKILLS } from '@/data/skills';
 import { ERAS, eraName } from '@/data/eras';
 import { getArchetype } from '@/data/archetypes';
 import { stageFor } from '@/systems/relationships';
+import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
 import { xpToNext } from '@/data/levels';
 import { TOUCH_MIN } from '@/data/layout';
 
@@ -115,6 +116,39 @@ function Altar({ state }: { state: GameState }) {
   );
 }
 
+/**
+ * 이 사람의 호감을 지금 올릴 수 있는 길.
+ *
+ * 규칙(CLAUDE.md · §7.3)은 **동행 탐사 · 고향 지역 탐사 · 선물 · 대화 사건**
+ * 넷뿐이다. 그런데 셋이 다 문턱을 갖고 있다 —
+ * 동행은 호감 40, 대화 사건은 20, 선물은 시장이 필요하다.
+ * 고향 지역은 그 지역이 열려야 한다.
+ *
+ * 그래서 갓 들어온 사람은 **막힌 것처럼 보인다.** 어디가 막혔는지 알려 준다.
+ */
+function affinityPath(state: GameState, who: CompanionRecord): string {
+  if (who.injuredUntilTurn > state.world.turn) return '다친 동안에는 오르지 않는다';
+
+  const paths: string[] = [];
+
+  if (who.affinity >= ESCORT_MIN_AFFINITY) paths.push('동행');
+
+  const home = REGIONS.find((r) => r.id === who.homeRegion);
+  if (home !== undefined && state.world.eraIndex >= home.unlockEra) {
+    paths.push(`고향 ${regionName(home.id)} 탐사`);
+  }
+
+  if ((state.town.buildings['market'] ?? 0) > 0) paths.push('선물');
+
+  if (paths.length > 0) return `올리는 길 — ${paths.join(' · ')}`;
+
+  // 하나도 없으면 무엇을 기다려야 하는지 말한다
+  if (home !== undefined) {
+    return `아직 길이 없다 — 시장을 지으면 선물, ${eraName(home.unlockEra, 0)}에 고향 ${regionName(home.id)}`;
+  }
+  return '아직 길이 없다 — 시장을 지으면 선물을 줄 수 있다';
+}
+
 /** 길드관 — 누구와 얼마나 가까운지 한자리에서 본다 */
 function Roster({ state }: { state: GameState }) {
   const list = Object.values(state.companions).filter((c) => c.departedTurn === null);
@@ -141,11 +175,14 @@ function Roster({ state }: { state: GameState }) {
               고향 {regionName(who.homeRegion)}
               {injured ? ` · 다쳤다 (${who.injuredUntilTurn - state.world.turn}주)` : ''}
             </div>
+            {/* 이 사람에게 지금 무엇을 할 수 있는지. 수치만 보여 주면 막힌 이유를 알 수 없다 */}
+            <div className="text-[11px] text-grassDark">{affinityPath(state, who)}</div>
           </div>
         );
       })}
       <p className="mt-2 text-[11px] text-inkSoft">
-        고향 지역에 함께 나가면 호감이 더 오른다.
+        호감은 동행 탐사 · 고향 지역 탐사 · 선물 · 대화 사건에서만 오른다.
+        찾아가 말을 거는 것만으로는 오르지 않는다.
       </p>
     </div>
   );
