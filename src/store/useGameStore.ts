@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import type { Dir, GameState, Ledger, ResourceId, StatId } from '@/types/game';
+import type { Dir, FactionId, GameState, Ledger, ResourceId, StatId } from '@/types/game';
 import type { DialogueScript, DialogueState } from '@/types/dialogue';
 import type { SaveReason } from '@/data/save';
 import { newGame, newLedger, seedOf } from '@/systems/newGame';
@@ -53,6 +53,8 @@ import { buildRivalScript, rivalDeltas } from '@/systems/rivals';
 import { RIVAL_AFFINITY } from '@/data/content/rival-events';
 import type { RivalPick } from '@/systems/rivals';
 import { getQuest } from '@/data/quests';
+import type { RegionEvent } from '@/data/content/region-events';
+import { applyRegionChoice, fillEventText, pickRegionEvent } from '@/systems/regionEvents';
 import {
   buyCost,
   getGift,
@@ -104,6 +106,16 @@ function revealFor(who: { images: Record<number, string | null>; pickedSlot: num
     if (slot !== who.pickedSlot && filled(slot)) return slot;
   }
   return null;
+}
+
+/** 지역 사건에서 고르고 난 뒤 화면에 남는 것 */
+export interface RegionEventView {
+  result: string;
+  notes: string[];
+  xp: number;
+  levelUp: LevelUp | null;
+  relicName: string | null;
+  relicFound: string | null;
 }
 
 /** 판정 연출이 보여 줄 것 */
@@ -228,6 +240,14 @@ interface GameStore {
   enterIndoor: (buildingId: string) => void;
   /** 밖으로 나온다. 들어갔던 문 앞에 선다 */
   leaveIndoor: () => void;
+  /**
+   * 지금 열려 있는 지역 사건 (§11 사건 노드).
+   * 전리품 노드와 달리 주사위를 굴리지 않는다 — 고르는 자리다.
+   */
+  regionEvent: { nodeId: string; event: RegionEvent; result: RegionEventView | null } | null;
+  chooseRegionEvent: (index: number) => void;
+  closeRegionEvent: () => void;
+
   /** 노드를 밟았다 → 판정 */
   stepNode: (nodeId: string) => void;
   closeExplore: () => void;
@@ -325,6 +345,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dialogue: null,
   buildPanel: null,
   shop: false,
+  regionEvent: null,
   room: null,
   regionSelect: false,
   explore: null,
@@ -1121,8 +1142,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const region = getRegion(regionId);
     if (region === undefined) return;
 
-    // 같은 노드를 두 번 밟아도 판정은 한 번이다
+    // 같은 노드를 두 번 밟아도 결과는 한 번이다
     const rng = createRng(`${seedOf(state)}:${state.world.turn}:${nodeId}`);
+
+    /**
+     * 사건 노드는 **판정이 아니다** (§11 — 텍스트 사건, 세력 평판이나 소량 XP).
+     * 셋 다 같은 1d20 을 굴리니 지역이 단조로웠다. 여기서 갈린다.
+     */
+    const here = loadMap({
+      mapId: state.world.currentMap,
+      eraIndex: state.world.eraIndex,
+      buildings: state.town.buildings,
+      escorted: state.escort !== null,
+    }).objects.find((o) => o.id === nodeId);
+
+    if (here?.nodeKind === 'event') {
+      const picked = pickRegionEvent(state, regionId, rng);
+      if (picked !== null) {
+        set({ regionEvent: { nodeId, event: picked, result: null } });
+        play('talk');
+        return;
+      }
+      // 맞는 사건이 없으면 조용히 판정으로 넘어간다. 밟았는데 아무 일도 없으면 고장으로 보인다
+    }
 
     const roll = rollExplore(state, region, rng);
     const outcome = resolveExplore(state, region, roll, rng, (r) => rollRelic(state, r)?.id ?? null);
@@ -1253,6 +1295,66 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       void get().save('map-change');
     }
+  },
+
+  chooseRegionEvent(index) {
+    const open = get().regionEvent;
+    const { state } = get();
+    if (open === null || state === null || open.result !== null) return;
+
+    const choice = open.event.choices[index];
+    if (choice === undefined) return;
+    play('choose');
+
+    const applied = applyRegionChoice(state, choice, (id) => FACTION_LABEL[id as FactionId] ?? id);
+    let next = applied.state;
+
+    // 유물은 부르는 쪽이 굴린다. 순수 함수가 난수를 쥐지 않는다
+    const rng = createRng(`${seedOf(state)}:${state.world.turn}:${open.nodeId}:choice`);
+    let relic: { id: string; name: string; found: string } | null = null;
+    if (applied.rollRelic) {
+      const rolled = rollRelic(next, rng);
+      if (rolled !== undefined && rolled !== null) {
+        relic = rolled;
+        next = { ...next, hero: { ...next.hero, relics: [...next.hero.relics, rolled.id] } };
+      }
+    }
+
+    const gained = gainXp(next, applied.xp);
+    next = gained.state;
+
+    // 연대기에 남긴다. 지나간 일이 기록으로 쌓여야 지역이 기억된다 (§15)
+    const line = fillEventText(choice.result, state);
+    next = {
+      ...next,
+      world: {
+        ...next.world,
+        clearedNodes: [...next.world.clearedNodes, open.nodeId],
+      },
+      chronicle: appendEntries(next.chronicle, [
+        makeEntry(next.world.turn, next.chronicle.length, line),
+      ]),
+    };
+
+    set({
+      state: next,
+      regionEvent: {
+        ...open,
+        result: {
+          result: line,
+          notes: applied.notes,
+          xp: applied.xp,
+          levelUp: gained.levelUp,
+          relicName: relic?.name ?? null,
+          relicFound: relic?.found ?? null,
+        },
+      },
+    });
+    void get().save('turn-end');
+  },
+
+  closeRegionEvent() {
+    set({ regionEvent: null });
   },
 
   openShop() {

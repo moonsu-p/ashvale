@@ -189,6 +189,7 @@ export function PhaserHost() {
         s.explore !== null ||
         s.shop ||
         s.room !== null ||
+        s.regionEvent !== null ||
         s.naming !== null ||
         s.menu !== null;
       if (busy !== wasTalking) {
