@@ -74,6 +74,11 @@ export interface IndoorContext {
   eraIndex: number;
   /** 숙소에 상주하는 인물 (§7.4 수락 → 마을에 상주 위치가 생긴다) */
   residents?: { id: string; archetypeId: string; name: string }[];
+  /**
+   * 이번 주 이 건물에 나와 있는 인물 (§7.6 나들이).
+   * 숙소에만 붙박여 있으면 찾아갈 이유가 한 곳뿐이다.
+   */
+  visitor?: { id: string; archetypeId: string; name: string };
 }
 
 export function buildIndoorMap(ctx: IndoorContext): TileMapData {
@@ -246,6 +251,25 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
         label: who.name,
         solid: true,
       });
+    });
+  }
+
+  /**
+   * 이번 주 나와 있는 사람 (§7.6 나들이).
+   *
+   * 목적 자리(상인·사서…) 와 겹치지 않게 한 칸 옆에 세운다.
+   * 말을 걸면 그 자리의 일이 벌어진다.
+   */
+  if (ctx.visitor !== undefined) {
+    objects.push({
+      id: `visitor-${ctx.visitor.id}`,
+      type: 'npc',
+      x: EXIT_X - 2,
+      y: Math.floor(H / 2),
+      sprite: companionSprite(ctx.visitor.archetypeId),
+      voice: { kind: 'companion', id: ctx.visitor.archetypeId },
+      label: ctx.visitor.name,
+      solid: true,
     });
   }
 

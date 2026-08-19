@@ -19,6 +19,14 @@ export const AFFINITY = {
   ignoredApproach: -3,
 } as const;
 
+/**
+ * 나들이 놀이 (§7.6).
+ *
+ * 이겨야 크게 오르지만 져도 오른다 — 놀이에 벌을 붙이면 다시 안 하게 된다.
+ * 선물(12)보다 낮게 둔다. 자원을 쓰는 쪽이 더 값이 나가야 한다.
+ */
+export const OUTING_AFFINITY = { win: 8, lose: 3 } as const;
+
 /** 선물은 인물당 4주 쿨다운 (§7.3) */
 export const GIFT_COOLDOWN_WEEKS = 4;
 

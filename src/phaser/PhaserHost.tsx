@@ -118,6 +118,17 @@ export function PhaserHost() {
             : {}),
         };
 
+        /**
+         * 나와 있는 사람에게 말을 걸었다 (§7.6 나들이).
+         *
+         * 평소 교류 대사 대신 그 자리의 일이 벌어진다 — 자리마다 하는 말이
+         * 다르고, 놀이가 따라온다. `visitor-` 로 시작하는 객체만 그렇다.
+         */
+        if (object.id.startsWith('visitor-') && companion !== undefined) {
+          store.openOuting(companion.id);
+          return;
+        }
+
         let script = null;
         if (object.voice.kind === 'patron' && state !== null) {
           script = buildPatronScript(object.voice.id, req, patronContext(state, object.voice.id));
@@ -190,6 +201,7 @@ export function PhaserHost() {
         s.shop ||
         s.room !== null ||
         s.regionEvent !== null ||
+        s.outing !== null ||
         s.naming !== null ||
         s.menu !== null;
       if (busy !== wasTalking) {

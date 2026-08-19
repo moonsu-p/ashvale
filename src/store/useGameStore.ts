@@ -42,6 +42,7 @@ import {
   ESCORT_INJURY,
   ESCORT_MIN_AFFINITY,
   FACTION_LABEL,
+  OUTING_AFFINITY,
   TRUST,
   TRUST_MAX,
 } from '@/data/relationships';
@@ -56,6 +57,13 @@ import type { RivalPick } from '@/systems/rivals';
 import { getQuest } from '@/data/quests';
 import type { RegionEvent } from '@/data/content/region-events';
 import { applyRegionChoice, fillEventText, pickRegionEvent } from '@/systems/regionEvents';
+import { outingOf } from '@/systems/outing';
+import {
+  GAME_INVITE,
+  GAME_LOSE,
+  GAME_WIN,
+  OUTING_INTRO,
+} from '@/data/content/outing-events';
 import {
   buyCost,
   getGift,
@@ -261,6 +269,22 @@ interface GameStore {
   stepNode: (nodeId: string) => void;
   closeExplore: () => void;
 
+  /**
+   * 나들이 (§7.6). 나와 있는 사람에게 말을 걸면 열린다.
+   * `phase` 로 대화 → 놀이 → 마무리 순으로 넘어간다.
+   */
+  outing: {
+    companionId: string;
+    buildingId: string;
+    phase: 'intro' | 'playing' | 'after';
+    lines: string[];
+    won: boolean;
+  } | null;
+  openOuting: (companionId: string) => void;
+  startOutingGame: () => void;
+  finishOutingGame: (won: boolean) => void;
+  closeOuting: () => void;
+
   /** 시장 판매대가 열려 있는가. 메뉴가 아니라 시장 안에서 연다 (§10) */
   shop: boolean;
   openShop: () => void;
@@ -355,6 +379,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   dialogueQueue: [],
   buildPanel: null,
   shop: false,
+  outing: null,
   regionEvent: null,
   room: null,
   regionSelect: false,
@@ -1474,6 +1499,67 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   closeRegionEvent() {
     set({ regionEvent: null });
+  },
+
+  openOuting(companionId) {
+    const { state } = get();
+    if (state === null) return;
+    const outing = outingOf(state);
+    if (outing === null || outing.companionId !== companionId) return;
+
+    const intro = OUTING_INTRO[outing.buildingId] ?? [];
+    set({
+      outing: {
+        companionId,
+        buildingId: outing.buildingId,
+        phase: 'intro',
+        // 자리에서 하는 말 + 놀이를 걸어오는 말
+        lines: [...intro, ...GAME_INVITE].map((line) =>
+          applyToken(line, '{거점}', state.town.name),
+        ),
+        won: false,
+      },
+    });
+    play('talk');
+  },
+
+  startOutingGame() {
+    const open = get().outing;
+    if (open === null) return;
+    set({ outing: { ...open, phase: 'playing' } });
+  },
+
+  finishOutingGame(won) {
+    const open = get().outing;
+    const { state } = get();
+    if (open === null || state === null) return;
+
+    const who = state.companions[open.companionId];
+    if (who === undefined) return;
+
+    /**
+     * 이긴 쪽이 크게 오른다. 진 쪽도 오른다 — 놀이는 놀이다 (§8.4).
+     * 벌을 주면 다시 안 하게 된다.
+     */
+    const delta = won ? OUTING_AFFINITY.win : OUTING_AFFINITY.lose;
+    const moved = withAffinity(who, delta);
+
+    set({
+      state: { ...state, companions: { ...state.companions, [moved.id]: moved } },
+      outing: {
+        ...open,
+        phase: 'after',
+        won,
+        lines: won ? [...GAME_WIN] : [...GAME_LOSE],
+      },
+      toast: `호감 +${delta}`,
+    });
+    play(won ? 'good' : 'talk');
+    void get().save('relationship');
+  },
+
+  closeOuting() {
+    set({ outing: null });
   },
 
   openShop() {

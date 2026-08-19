@@ -33,6 +33,8 @@ export interface MapContext extends TownContext {
    * 안 그러면 혼자 갔던 지도가 캐시에서 그대로 나온다.
    */
   escorted?: boolean;
+  /** 이번 주 이 건물에 나와 있는 인물 (§7.6 나들이) */
+  visitor?: { id: string; archetypeId: string; name: string };
 }
 
 const cache = new Map<string, TileMapData>();
@@ -43,7 +45,9 @@ export function mapKey(ctx: MapContext): string {
   // 실내는 시대에 따라 의뢰인이, 숙소는 상주하는 인물이 달라진다
   if (buildingIdFromIndoor(ctx.mapId) !== null) {
     const who = (ctx.residents ?? []).map((r) => `${r.id}@${r.name}`).join(',');
-    return `${ctx.mapId}:${ctx.eraIndex}:${who}`;
+    // 나와 있는 사람이 바뀌면 다시 그린다
+    const guest = ctx.visitor === undefined ? '' : `${ctx.visitor.id}@${ctx.visitor.name}`;
+    return `${ctx.mapId}:${ctx.eraIndex}:${who}:${guest}`;
   }
   if (regionIdFromMap(ctx.mapId) !== null) {
     return ctx.escorted === true ? `${ctx.mapId}:escort` : ctx.mapId;
@@ -69,6 +73,7 @@ export function loadMap(ctx: MapContext): TileMapData {
       buildingId: indoorOf,
       eraIndex: ctx.eraIndex,
       ...(ctx.residents !== undefined ? { residents: ctx.residents } : {}),
+      ...(ctx.visitor !== undefined ? { visitor: ctx.visitor } : {}),
     });
   } else {
     throw new Error(`맵 '${ctx.mapId}' 가 없다. src/systems/map.ts 의 loadMap 에 추가하라.`);

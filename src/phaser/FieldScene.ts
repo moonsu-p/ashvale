@@ -20,6 +20,8 @@ import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
 import { residentsOf, townFolk } from '@/systems/roster';
 import { displayName } from '@/systems/relationships';
 import { companionSprite } from '@/data/sprites';
+import { isOut, visitorAt } from '@/systems/outing';
+import { buildingIdFromIndoor } from '@/data/maps/indoor';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
 import {
@@ -179,21 +181,31 @@ export class FieldScene extends Phaser.Scene {
       mapId: state.world.currentMap,
       eraIndex: state.world.eraIndex,
       buildings: state.town.buildings,
-      // 숙소에 누가 사는지는 관계 상태에서 나온다 (§7.4)
-      residents: residentsOf(state).map((c) => ({
-        id: c.id,
-        archetypeId: c.archetypeId,
-        name: displayName(c),
-      })),
+      // 숙소에 누가 사는지는 관계 상태에서 나온다 (§7.4).
+      // 이번 주 나가 있는 사람은 집에 없다
+      residents: residentsOf(state)
+        .filter((c) => !isOut(state, c.id))
+        .map((c) => ({ id: c.id, archetypeId: c.archetypeId, name: displayName(c) })),
       // 마을에 서 있을 인물 (§7.6). 동행 중인 사람과 숙소 거주자는 빠진다
       // 동행 노드는 데려갔을 때만 생긴다 (§11)
       escorted: state.escort !== null,
-      folk: townFolk(state).map((c) => ({
-        id: c.id,
-        archetypeId: c.archetypeId,
-        name: displayName(c),
-      })),
+      folk: townFolk(state)
+        .filter((c) => !isOut(state, c.id))
+        .map((c) => ({ id: c.id, archetypeId: c.archetypeId, name: displayName(c) })),
     };
+
+    // 이번 주 이 건물에 나와 있는 사람 (§7.6 나들이)
+    const indoorOf = buildingIdFromIndoor(state.world.currentMap);
+    if (indoorOf !== null) {
+      const guest = visitorAt(state, indoorOf);
+      if (guest !== null) {
+        ctx.visitor = {
+          id: guest.id,
+          archetypeId: guest.archetypeId,
+          name: displayName(guest),
+        };
+      }
+    }
 
     // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다
     const key = mapKey(ctx);
