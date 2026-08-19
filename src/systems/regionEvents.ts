@@ -13,10 +13,10 @@ import type { RegionChoice, RegionEvent } from '@/data/content/region-events';
 import { REGION_EVENTS } from '@/data/content/region-events';
 import type { Rng } from './rng';
 import { shiftFaction } from './factions';
-import { withAffinity } from './relationships';
+import { displayName, withAffinity } from './relationships';
 import { applyToken } from './korean';
 import { escortOf } from './escort';
-import { displayName } from './roster';
+
 
 /**
  * 이 자리에서 벌어질 수 있는 사건.

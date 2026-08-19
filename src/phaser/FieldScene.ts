@@ -17,7 +17,8 @@ import { STEP_MS, TILE, TURN_HOLD_MS } from '@/data/layout';
 import { seasonOf } from '@/data/seasons';
 import { isBlocked, loadMap, mapKey, objectAt, type MapContext } from '@/systems/map';
 import { interactionAt, resolveMove, type HeroTile } from '@/systems/movement';
-import { displayName, residentsOf, townFolk } from '@/systems/roster';
+import { residentsOf, townFolk } from '@/systems/roster';
+import { displayName } from '@/systems/relationships';
 import { companionSprite } from '@/data/sprites';
 import { drawPlaceholder } from '@/render/placeholder';
 import { paintMapCanvas } from '@/render/terrain';
@@ -104,6 +105,8 @@ export class FieldScene extends Phaser.Scene {
   // 이동 진행 상태. 게임 상태가 아니라 애니메이션 상태다
   private walking = false;
   private queued: Dir | null = null;
+  /** 맵이 갈린 뒤, 누르고 있던 방향을 놓을 때까지 걷지 않는다 */
+  private holdBlocked = false;
   private turnUntil = 0;
   private lastPressCount = 0;
   private lastActionCount = 0;
@@ -194,7 +197,8 @@ export class FieldScene extends Phaser.Scene {
 
     // 건물을 올리면 열쇠가 달라진다. 그때 마을 그림을 다시 굽는다
     const key = mapKey(ctx);
-    if (key !== this.mapKeyDrawn) {
+    const changed = key !== this.mapKeyDrawn;
+    if (changed) {
       this.mapKeyDrawn = key;
       this.buildMap(ctx, key);
     }
@@ -208,8 +212,15 @@ export class FieldScene extends Phaser.Scene {
       this.setApproach(pending);
     }
 
-    // 걷는 중에는 씬이 앞서 있다. 트윈과 싸우지 않게 둔다
-    if (!this.walking) {
+    /**
+     * 걷는 중에는 씬이 앞서 있으므로 트윈과 싸우지 않게 둔다.
+     *
+     * **맵이 갈렸으면 예외다.** 한 걸음 걷는 중에 문에 닿아 A 를 누르면
+     * 맵은 바뀌는데 씬은 옛 좌표를 들고 있다가, 트윈이 끝나면서 그 좌표를
+     * 새 맵의 위치로 되써 버린다 — 들어가고 나올 때 엉뚱한 자리에 서 있던 원인이다.
+     * buildMap 이 걷던 것을 끊어 두었으므로 여기서 새 자리로 앉힌다.
+     */
+    if (!this.walking || changed) {
       const tile = state.world.heroTile;
       this.hero = { x: tile.x, y: tile.y, dir: tile.dir };
       this.placeHero();
@@ -221,6 +232,27 @@ export class FieldScene extends Phaser.Scene {
   }
 
   private buildMap(ctx: MapContext, cacheKey: string): void {
+    /**
+     * 걷던 것을 끊는다.
+     *
+     * 스프라이트를 새로 세우는데 옛 스프라이트를 겨눈 트윈이 남아 있으면
+     * 그 트윈의 onComplete 가 `finishStep` 을 불러 **옛 좌표를 새 맵에
+     * 기록하고, 쌓인 입력으로 한 걸음 더 걷는다.** 위치가 어긋나는 자리다.
+     */
+    if (this.heroSprite !== null) this.tweens.killTweensOf(this.heroSprite);
+    if (this.escortSprite !== null) this.tweens.killTweensOf(this.escortSprite);
+    this.walking = false;
+    this.queued = null;
+    /**
+     * 누르고 있던 방향을 새 맵으로 넘기지 않는다.
+     *
+     * 걸어가며 A 로 문에 들어가면 손은 아직 방향판을 누른 채다. 그 hold 가
+     * 그대로 이어져 들어선 자리에서 한 칸 더 걸었다 — 진입 자리가 (6,13)
+     * 이어야 하는데 (6,12) 로, 퇴장은 문 앞이 아니라 그 아래로 밀렸다.
+     * **다시 누를 때까지** 걷지 않는다. 문을 여는 A 와 걷는 입력은 다른 뜻이다.
+     */
+    this.holdBlocked = true;
+
     const map = loadMap(ctx);
     this.map = map;
 
@@ -736,6 +768,13 @@ export class FieldScene extends Phaser.Scene {
     // 방향만 바꾼 직후의 짧은 틈
     if (time < this.turnUntil) return;
 
+    // 맵이 갈릴 때 눌려 있던 손은 놓을 때까지 무시한다
+    if (this.holdBlocked) {
+      if (input.held === null) this.holdBlocked = false;
+      else if (!newPress) return;
+      else this.holdBlocked = false;
+    }
+
     const next = this.queued ?? input.held;
     this.queued = null;
     if (next === null) return;
@@ -888,7 +927,7 @@ export class FieldScene extends Phaser.Scene {
     // 쌓아 둔 입력이나 여전히 눌린 방향이 있으면 멈추지 않고 이어 간다.
     // 여기서 한 번 세우면 모퉁이를 돌 때마다 걸린다
     const input = readInput();
-    const next = this.queued ?? input.held;
+    const next = this.holdBlocked ? this.queued : (this.queued ?? input.held);
     this.queued = null;
 
     if (next !== null) {

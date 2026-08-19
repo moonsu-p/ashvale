@@ -22,7 +22,7 @@ import { INDOOR_ENTRY, buildingIdFromIndoor, indoorMapId } from '@/data/maps/ind
 import { REGION_TEXT } from '@/data/content/region-text';
 import { START_HERO_TILE } from '@/data/start';
 import { resolveExplore, rollExplore, type ExploreOutcome } from '@/systems/explore';
-import { loadMap } from '@/systems/map';
+import { isBlocked, loadMap } from '@/systems/map';
 import { rescueTile } from '@/systems/movement';
 import { escortOf } from '@/systems/escort';
 import {
@@ -48,7 +48,7 @@ import {
 import { shiftFaction } from '@/systems/factions';
 import { buildConfessionScript, buildEventScript } from '@/systems/dialogue';
 import { answerConfession, shouldConfess } from '@/systems/confession';
-import { addCompanion } from '@/systems/roster';
+import { addCompanion, residentsOf, townFolk } from '@/systems/roster';
 import { buildRivalScript, rivalDeltas } from '@/systems/rivals';
 import { RIVAL_AFFINITY } from '@/data/content/rival-events';
 import type { RivalPick } from '@/systems/rivals';
@@ -1121,11 +1121,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { state } = get();
     if (state === null) return;
 
-    // 들어갔던 건물의 문 앞으로 나온다
+    /**
+     * 들어갔던 건물의 **문 앞**으로 나온다.
+     *
+     * 두 군데가 틀려 있었다.
+     *
+     *  1. 문 타일 **위**에 세우고 있었다. 나오자마자 발밑이 '들어가기' 라
+     *     한 번 더 누르면 그대로 다시 들어간다 — 나온 것 같지 않다.
+     *     문 아래 한 칸은 마을 맵이 반드시 비워 두므로 거기 세운다.
+     *  2. `loadMap` 을 folk·escorted 없이 불러 **씬과 다른 열쇠**로 마을을
+     *     또 지었다. 같은 맥락으로 불러야 같은 지도를 본다.
+     */
     const buildingId = buildingIdFromIndoor(state.world.currentMap);
-    const town = loadMap({ mapId: 'town', eraIndex: state.world.eraIndex, buildings: state.town.buildings });
+    const town = loadMap({
+      mapId: 'town',
+      eraIndex: state.world.eraIndex,
+      buildings: state.town.buildings,
+      escorted: state.escort !== null,
+      residents: residentsOf(state).map((c) => ({
+        id: c.id,
+        archetypeId: c.archetypeId,
+        name: displayName(c),
+      })),
+      folk: townFolk(state).map((c) => ({
+        id: c.id,
+        archetypeId: c.archetypeId,
+        name: displayName(c),
+      })),
+    });
     const door = town.objects.find((o) => o.building === buildingId);
-    const tile = door === undefined ? START_HERO_TILE : { x: door.x, y: door.y, dir: 'down' as const };
+    const front = door === undefined ? null : { x: door.x, y: door.y + 1 };
+    const tile =
+      front !== null && !isBlocked(town, front.x, front.y)
+        ? { x: front.x, y: front.y, dir: 'down' as const }
+        : door !== undefined
+          ? { x: door.x, y: door.y, dir: 'down' as const }
+          : START_HERO_TILE;
 
     set({
       state: { ...state, world: { ...state.world, currentMap: 'town', heroTile: tile } },
