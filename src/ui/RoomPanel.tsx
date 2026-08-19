@@ -15,7 +15,10 @@ import { RELICS } from '@/data/content/world-content';
 import { SKILLS } from '@/data/skills';
 import { ERAS, eraName } from '@/data/eras';
 import { getArchetype } from '@/data/archetypes';
-import { stageFor } from '@/systems/relationships';
+import { displayName, stageFor } from '@/systems/relationships';
+import { canRefer, REFERRAL_AT } from '@/systems/confession';
+import { REFERRED } from '@/systems/roster';
+import { COMPANION_LIMIT } from '@/data/archetypes';
 import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
 import { xpToNext } from '@/data/levels';
 import { TOUCH_MIN } from '@/data/layout';
@@ -154,6 +157,9 @@ function Roster({ state }: { state: GameState }) {
   const list = Object.values(state.companions).filter((c) => c.departedTurn === null);
   if (list.length === 0) return <Empty id="roster" />;
 
+  // 아직 소개하지 않은 우애 맹우. 다음 주에 사람을 데려온다
+  const ready = list.filter((c) => canRefer(c) && !c.clearedEvents.includes(REFERRED));
+
   return (
     <div>
       {list.map((who) => {
@@ -184,6 +190,26 @@ function Roster({ state }: { state: GameState }) {
         호감은 동행 탐사 · 고향 지역 탐사 · 선물 · 대화 사건에서만 오른다.
         찾아가 말을 거는 것만으로는 오르지 않는다.
       </p>
+
+      {/*
+        새 사람이 어떻게 들어오는지 알 방법이 없었다. 명단이 늘지 않으면
+        무엇을 해야 하는지가 여기서 읽혀야 한다.
+      */}
+      <div className="mt-2 border-t border-stoneDark/25 pt-2">
+        <div className="text-[12px] font-medium">명단 {list.length} / {COMPANION_LIMIT}</div>
+        <p className="text-[11px] text-inkSoft">
+          새 사람은 스스로 오지 않는다. <b>회관 의뢰인의 의뢰</b>를 맡아 마치거나,{' '}
+          <b>우애 맹우({REFERRAL_AT})</b>가 데려온다.
+        </p>
+        <p className="text-[11px] text-inkSoft">
+          연심으로만 밀면 소개가 끊긴다 — 소개는 우애 트랙 전용이다.
+        </p>
+        {ready.length > 0 && (
+          <p className="text-[11px] text-grassDark">
+            데려올 수 있는 사람 — {ready.map((c) => displayName(c)).join(' · ')}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -16,10 +16,12 @@ import { CHRONICLE_TEXT } from '@/data/chronicle';
 import { applyProduction, computeHeal, computeProduction } from './economy';
 import { eraFor, townPower } from './eras';
 import { appendEntries, makeEntry } from './chronicle';
-import { queueApproaches } from './relationships';
+import { queueApproaches, displayName } from './relationships';
 import { applyEvent, rollEvent } from './worldEvents';
 import { collapse, shouldCollapse } from './collapse';
 import { rollRival, type RivalPick } from './rivals';
+import { runReferrals } from './roster';
+import { getArchetype } from '@/data/archetypes';
 import { COLLAPSE_TEXT as CHRONICLE_TEXT_COLLAPSE } from '@/data/collapse';
 
 export interface WeekInput {
@@ -121,6 +123,25 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
 
     if (nowExtent.width !== wasExtent.width || nowExtent.height !== wasExtent.height) {
       lines.push(CHRONICLE_TEXT.expand(nowExtent.width, nowExtent.height));
+    }
+  }
+
+  /**
+   * 인물 해금 — 맹우의 소개 연쇄 (§3 6단계 "해금 판정(지역·인물·건물)").
+   *
+   * "인물" 이 6단계에 적혀 있는데 구현이 없었다. 새 사람이 들어오는 길이
+   * 의뢰 보상 하나뿐이라, 의뢰를 다 하면 명단이 거기서 멈췄다.
+   */
+  const referred = runReferrals(next);
+  if (referred.made.length > 0) {
+    next = referred.state;
+    for (const { referrer, joined } of referred.made) {
+      lines.push(
+        CHRONICLE_TEXT.referral(
+          displayName(referrer),
+          getArchetype(joined.archetypeId)?.label ?? '낯선 사람',
+        ),
+      );
     }
   }
 

@@ -35,6 +35,14 @@ export const CHRONICLE_TEXT = {
     return `식량이 ${shortfall} 모자랐다. 곳간이 비었다.`;
   },
 
+  /**
+   * 맹우가 사람을 데려왔다 (§7.4 소개 연쇄).
+   * 이름은 아직 없다 — 플레이어가 붙인다 (§7.1). 그래서 원형으로 적는다.
+   */
+  referral(referrer: string, label: string): string {
+    return `${josa(referrer, '이')} 사람을 하나 데려왔다. ${label}라고 했다.`;
+  },
+
   /** 시대가 바뀌었다 */
   era(from: string, to: string): string {
     return `${josa(from, '이')} 저물고 ${josa(to, '이')} 열렸다.`;

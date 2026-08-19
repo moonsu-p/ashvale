@@ -9,6 +9,7 @@
 import type { CompanionOrigin, CompanionRecord, GameState } from '@/types/game';
 import { ARCHETYPES, COMPANION_LIMIT, getArchetype } from '@/data/archetypes';
 import { LODGE_SLOTS_PER_LEVEL } from '@/data/buildings';
+import { canRefer } from './confession';
 
 /** 지금 명단에 있는(떠나지 않은) 인원 */
 export function rosterSize(state: GameState): number {
@@ -113,4 +114,55 @@ export function townFolk(state: GameState): CompanionRecord[] {
       (c) => c.departedTurn === null && !indoors.has(c.id) && c.id !== state.escort,
     )
     .sort((a, b) => a.joinedTurn - b.joinedTurn || a.id.localeCompare(b.id));
+}
+
+/** 소개를 이미 한 사람에게 박는 표. clearedEvents 에 넣는다 */
+export const REFERRED = 'referred';
+
+/**
+ * 맹우의 소개 연쇄 (§7.4, §3 6단계 "해금 판정 — 인물").
+ *
+ * **이게 죽은 코드였다.** `canRefer` 는 있었는데 부르는 곳이 없어서
+ * 새 인물이 들어오는 길은 의뢰 보상 하나뿐이었다 — 의뢰를 다 하면 명단이
+ * 거기서 멈춘다. §7.4 가 소개 연쇄를 **우애 트랙 전용**으로 둔 이유가
+ * 있는데(전원을 연심으로 밀면 로스터 성장이 멈춘다) 그 대비가 성립하지
+ * 않았다. 벌이 아니라 기회비용이어야 한다.
+ *
+ * 한 사람이 한 번만 소개한다. 상한(8명)에 닿으면 아무 일도 없다.
+ */
+export interface Referral {
+  /** 데려온 사람 */
+  referrer: CompanionRecord;
+  /** 새로 들어온 사람. 이름은 비어 있다 (§7.1) */
+  joined: CompanionRecord;
+}
+
+export function runReferrals(state: GameState): { state: GameState; made: Referral[] } {
+  let next = state;
+  const made: Referral[] = [];
+
+  // 호감이 높은 쪽부터. 순서가 흔들리면 같은 주에 누가 데려올지 달라진다
+  const referrers = Object.values(state.companions)
+    .filter((c) => canRefer(c) && !c.clearedEvents.includes(REFERRED))
+    .sort((a, b) => b.affinity - a.affinity || a.id.localeCompare(b.id));
+
+  for (const who of referrers) {
+    if (rosterFull(next)) break;
+
+    const grown = addCompanion(next, 'referral');
+    if (grown === null) break;
+
+    // 소개한 사람에게 표를 박는다. 같은 사람이 계속 데려오면 상한만 채운다
+    const marked = {
+      ...(grown.state.companions[who.id] ?? who),
+      clearedEvents: [...who.clearedEvents, REFERRED],
+    };
+    next = {
+      ...grown.state,
+      companions: { ...grown.state.companions, [who.id]: marked },
+    };
+    made.push({ referrer: who, joined: grown.companion });
+  }
+
+  return { state: next, made };
 }
