@@ -4,6 +4,7 @@
  * 주 종료 2단계가 이것을 쓴다: 자원 생산 − 식량 소비 (계절 보정).
  */
 
+import { devotionTotals } from './devotion';
 import type { GameState, ResourceId } from '@/types/game';
 import {
   BUILDINGS,
@@ -54,6 +55,8 @@ export function grossYield(buildings: Record<string, number>): Record<ResourceId
 export function computeProduction(
   buildings: Record<string, number>,
   season: SeasonId,
+  /** 최대 호감이 남긴 주간 보탬 (§7 헌신). 없으면 빈 것 */
+  devotion: Partial<Record<ResourceId, number>> = {},
 ): Production {
   const gross = grossYield(buildings);
   const seasonAdj = empty();
@@ -67,7 +70,7 @@ export function computeProduction(
   const foodConsumed = townPower(buildings) * FOOD_PER_POP;
 
   const net = empty();
-  for (const r of RESOURCES) net[r] = gross[r] + seasonAdj[r];
+  for (const r of RESOURCES) net[r] = gross[r] + seasonAdj[r] + (devotion[r] ?? 0);
   net.food -= foodConsumed;
 
   return { gross, season: seasonAdj, foodConsumed, net };
@@ -95,5 +98,7 @@ export function computeHeal(state: GameState): number {
   if (state.resources.food < 0) return 0;
 
   const shrine = state.town.buildings['shrine'] ?? 0;
-  return Math.min(missing, REST_HEAL_PER_WEEK + shrine * SHRINE_HEAL_PER_LEVEL);
+  // 약초사가 최대에 닿으면 더 낫는다 (§7 헌신)
+  const devoted = devotionTotals(state).heal;
+  return Math.min(missing, REST_HEAL_PER_WEEK + shrine * SHRINE_HEAL_PER_LEVEL + devoted);
 }

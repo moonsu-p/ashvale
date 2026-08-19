@@ -16,6 +16,7 @@ import { TRACKING } from '@/data/skills';
 import type { Rng } from './rng';
 import { relicBonus } from './relics';
 import { escortBonus, escortOf } from './escort';
+import { devotionTotals } from './devotion';
 
 const STAT_LABEL = {
   might: '힘',
@@ -103,6 +104,8 @@ export function resolveExplore(
   const table = GRADE_TABLE[roll.grade];
   const bonus = relicBonus(state);
   const escort = escortBonus(escortOf(state), region.stat);
+  // 최대 호감이 남긴 것 (§7 헌신) — 유물과 위기 방어에 붙는다
+  const devoted = devotionTotals(state);
 
   const loot: Partial<Record<ResourceId, number>> = {};
   if (table.loot > 0) {
@@ -129,12 +132,14 @@ export function resolveExplore(
    */
   const cut = Math.min(
     100,
-    escort.anyHpPercent + (roll.grade === 'crisis' ? escort.crisisHpPercent : 0),
+    escort.anyHpPercent +
+      (roll.grade === 'crisis' ? escort.crisisHpPercent + devoted.crisisHpPercent : 0),
   );
   if (cut > 0) hpLoss = Math.round(hpLoss * (1 - cut / 100));
 
   // 별의 균열은 유물이 두 배로 나온다
-  const chance = table.relic * (region.doubleRelic === true ? 2 : 1) + escort.relicPoints;
+  const chance =
+    table.relic * (region.doubleRelic === true ? 2 : 1) + escort.relicPoints + devoted.relicPoints;
   const relicId = chance > 0 && rng.chance(chance) ? relicPicker(rng) : null;
 
   return { roll, loot, xp, hpLoss, relicId };

@@ -15,6 +15,7 @@
 import type { ResourceId, StatId } from '@/types/game';
 import { useGameStore } from '@/store/useGameStore';
 import { computeProduction } from '@/systems/economy';
+import { devotionLines, devotionTotals } from '@/systems/devotion';
 import { xpToNext } from '@/data/levels';
 import { SKILLS } from '@/data/skills';
 import { RELICS } from '@/data/content/world-content';
@@ -62,7 +63,9 @@ export function StatusPanel() {
 
   const { hero } = state;
   const season = seasonOf(state.world.week);
-  const production = computeProduction(state.town.buildings, season);
+  const devoted = devotionTotals(state);
+  const devotions = devotionLines(state);
+  const production = computeProduction(state.town.buildings, season, devoted.weekly);
   const power = Object.values(state.town.buildings).reduce((sum, n) => sum + n, 0);
   const nextEra = ERAS.find((era) => era.power > power);
   const held = RELICS.filter((relic) => hero.relics.includes(relic.id));
@@ -152,6 +155,8 @@ export function StatusPanel() {
           // 왜 그 수가 나왔는지 보이게 쪼갠다. 식량만 소비가 붙는다
           const parts = [`생산 ${gross}`];
           if (adj !== 0) parts.push(`계절 ${signed(adj)}`);
+          const boon = devoted.weekly[id] ?? 0;
+          if (boon !== 0) parts.push(`헌신 ${signed(boon)}`);
           if (id === 'food' && production.foodConsumed > 0) {
             parts.push(`식비 -${production.foodConsumed}`);
           }
@@ -178,6 +183,20 @@ export function StatusPanel() {
           한 주가 지날 때마다 이만큼 더해진다. 식량이 마이너스로 이어지면 기근이 온다.
         </p>
       </section>
+
+      {devotions.length > 0 && (
+        <section>
+          <h3 className="mb-1 text-[13px] font-medium">
+            헌신 <span className="text-[11px] text-inkSoft">· 호감이 끝까지 닿은 사람</span>
+          </h3>
+          {devotions.map((d) => (
+            <Row key={d.name} label={d.name} value={d.text} />
+          ))}
+          <p className="mt-1 text-[11px] text-inkSoft">
+            같은 원형이 여럿이어도 겹치지 않는다.
+          </p>
+        </section>
+      )}
 
       <section>
         <h3 className="mb-1 text-[13px] font-medium">마을</h3>

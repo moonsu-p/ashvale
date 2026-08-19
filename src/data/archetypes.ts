@@ -13,6 +13,23 @@ import type { FactionId, StatId } from '@/types/game';
  * 지금까지 `escortText` 로 **설명만** 있고 수치가 어디에도 안 붙었다 —
  * 데려가도 판정이 그대로였다. 여기서 형을 주고 explore 가 읽는다.
  */
+/**
+ * 헌신 — 호감이 최대(100)에 닿은 사람이 마을에 남기는 것 (§7).
+ *
+ * 80(맹우) 위로는 단계도 없고 100 에서는 그냥 멈췄다. 올릴 이유가 사라진다.
+ * 최대에 닿으면 **그 사람다운 방식으로** 마을에 보탬이 된다 —
+ * 금화만 흘려주면 관계가 수도꼭지가 된다. 원형마다 다른 것을 준다.
+ */
+export type DevotionBoon =
+  /** 주마다 들어오는 자원 */
+  | { kind: 'weekly'; resource: 'wood' | 'stone' | 'food' | 'gold'; value: number }
+  /** 주마다 회복하는 기력 */
+  | { kind: 'heal'; value: number }
+  /** 유물 발견 확률에 더한다. 0.02 = +2%p */
+  | { kind: 'relicFind'; points: number }
+  /** 위기 결과의 기력 손실을 줄인다 */
+  | { kind: 'crisisHp'; percent: number };
+
 export type EscortEffect =
   | { kind: 'roll'; value: number }
   | { kind: 'statRoll'; stat: StatId; value: number }
@@ -41,6 +58,10 @@ export interface ArchetypeDef {
    * "무작위(생성 시 고정)" 라 인물마다 다르므로 id 에서 뽑는다.
    */
   escort: EscortEffect[];
+  /** 호감 최대(100)에서 마을에 남는 것 */
+  devotion: DevotionBoon[];
+  /** 그것을 사람이 읽을 말로 */
+  devotionText: string;
 }
 
 export const ARCHETYPES: ArchetypeDef[] = [
@@ -52,6 +73,8 @@ export const ARCHETYPES: ArchetypeDef[] = [
     homeRegion: 'gate',
     escortText: '위기 결과 HP 손실 −50%',
     escort: [{ kind: 'crisisHp', percent: 50 }],
+    devotion: [{ kind: 'crisisHp', percent: 25 }],
+    devotionText: '위기 기력 손실 -25%',
   },
   {
     id: 'hunter',
@@ -61,6 +84,8 @@ export const ARCHETYPES: ArchetypeDef[] = [
     homeRegion: 'whisper',
     escortText: '탐사 판정 +2',
     escort: [{ kind: 'roll', value: 2 }],
+    devotion: [{ kind: 'weekly', resource: 'food', value: 4 }],
+    devotionText: '주간 식량 +4',
   },
   {
     id: 'mage',
@@ -73,6 +98,8 @@ export const ARCHETYPES: ArchetypeDef[] = [
       { kind: 'statRoll', stat: 'insight', value: 2 },
       { kind: 'relicFind', points: 0.03 },
     ],
+    devotion: [{ kind: 'relicFind', points: 0.02 }],
+    devotionText: '유물 발견 +2%p',
   },
   {
     id: 'herbalist',
@@ -82,6 +109,8 @@ export const ARCHETYPES: ArchetypeDef[] = [
     homeRegion: 'marsh',
     escortText: '탐사 HP 손실 −50%',
     escort: [{ kind: 'anyHp', percent: 50 }],
+    devotion: [{ kind: 'heal', value: 2 }],
+    devotionText: '주간 기력 회복 +2',
   },
   {
     id: 'envoy',
@@ -91,6 +120,8 @@ export const ARCHETYPES: ArchetypeDef[] = [
     homeRegion: 'peaks',
     escortText: '전리품 +20%',
     escort: [{ kind: 'loot', percent: 20 }],
+    devotion: [{ kind: 'weekly', resource: 'gold', value: 5 }],
+    devotionText: '주간 금화 +5',
   },
   {
     id: 'wanderer',
@@ -101,6 +132,11 @@ export const ARCHETYPES: ArchetypeDef[] = [
     homeRegion: 'rift',
     escortText: '무작위 (생성 시 고정)',
     escort: [],
+    devotion: [
+      { kind: 'weekly', resource: 'wood', value: 2 },
+      { kind: 'weekly', resource: 'stone', value: 2 },
+    ],
+    devotionText: '주간 목재 +2 · 석재 +2',
   },
 ];
 

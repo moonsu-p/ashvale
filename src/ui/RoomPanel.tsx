@@ -19,7 +19,7 @@ import { displayName, stageFor } from '@/systems/relationships';
 import { canRefer, REFERRAL_AT } from '@/systems/confession';
 import { REFERRED } from '@/systems/roster';
 import { COMPANION_LIMIT } from '@/data/archetypes';
-import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
+import { AFFINITY_MAX, ESCORT_MIN_AFFINITY } from '@/data/relationships';
 import { xpToNext } from '@/data/levels';
 import { TOUCH_MIN } from '@/data/layout';
 
@@ -182,7 +182,13 @@ function Roster({ state }: { state: GameState }) {
               {injured ? ` · 다쳤다 (${who.injuredUntilTurn - state.world.turn}주)` : ''}
             </div>
             {/* 이 사람에게 지금 무엇을 할 수 있는지. 수치만 보여 주면 막힌 이유를 알 수 없다 */}
-            <div className="text-[11px] text-grassDark">{affinityPath(state, who)}</div>
+            {who.affinity >= AFFINITY_MAX ? (
+              <div className="text-[11px] text-gold">
+                더 오를 데가 없다 — {getArchetype(who.archetypeId)?.devotionText}
+              </div>
+            ) : (
+              <div className="text-[11px] text-grassDark">{affinityPath(state, who)}</div>
+            )}
           </div>
         );
       })}
