@@ -29,6 +29,27 @@ const EXIT_X = Math.floor(W / 2);
 
 export const INDOOR_ENTRY = { x: EXIT_X, y: H - 2, dir: 'up' } as const;
 
+/**
+ * 숙소 방 배치 (§10 관계 대상 상주 자리).
+ *
+ * 13×15 안에 가운데 복도(EXIT_X)를 두고 양옆으로 방을 셋씩.
+ * 숙소는 레벨당 자리 둘이므로 3레벨이면 여섯 방이 다 찬다.
+ */
+const LODGE = {
+  wallLeft: EXIT_X - 1,
+  wallRight: EXIT_X + 1,
+  /** 방과 방을 가르는 가로벽 */
+  splits: [6, 10],
+  rooms: [
+    { side: 'left', doorY: 4, bedX: 1, bedY: 3, standX: 3, standY: 4 },
+    { side: 'right', doorY: 4, bedX: W - 2, bedY: 3, standX: W - 4, standY: 4 },
+    { side: 'left', doorY: 8, bedX: 1, bedY: 7, standX: 3, standY: 8 },
+    { side: 'right', doorY: 8, bedX: W - 2, bedY: 7, standX: W - 4, standY: 8 },
+    { side: 'left', doorY: 12, bedX: 1, bedY: 11, standX: 3, standY: 12 },
+    { side: 'right', doorY: 12, bedX: W - 2, bedY: 11, standX: W - 4, standY: 12 },
+  ] as const,
+} as const;
+
 /** 실내 맵 id 는 'indoor:hall' 꼴이다 (§4) */
 export function indoorMapId(buildingId: string): string {
   return `indoor:${buildingId}`;
@@ -80,9 +101,12 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
     put(W - 1, y, 'wall', true);
   }
 
-  // 가운데 깔개. 벽과 세간에서 한 칸 떼어 놓는다
-  for (let y = 5; y <= H - 5; y++) {
-    for (let x = 4; x <= W - 5; x++) put(x, y, 'rug', false);
+  // 가운데 깔개. 벽과 세간에서 한 칸 떼어 놓는다.
+  // 숙소는 방으로 나뉘므로 깔개를 깔지 않는다 — 방 사이로 천이 이어지면 이상하다
+  if (ctx.buildingId !== 'lodge') {
+    for (let y = 5; y <= H - 5; y++) {
+      for (let x = 4; x <= W - 5; x++) put(x, y, 'rug', false);
+    }
   }
 
   // 나가는 문
@@ -182,14 +206,41 @@ export function buildIndoorMap(ctx: IndoorContext): TileMapData {
    * 찾아갈 데가 생겨야 관계가 자리를 얻는다.
    */
   if (ctx.buildingId === 'lodge') {
-    (ctx.residents ?? []).forEach((who, i) => {
-      const x = 3 + i * 3;
-      if (x >= W - 2) return;
+    /**
+     * 각자 방을 준다.
+     *
+     * 예전에는 한 줄로 나란히 세웠다 — 사는 곳이 아니라 진열장이었다.
+     * 가운데 복도를 내고 양옆으로 방을 세 칸씩 나눈다. 방마다 문이 하나,
+     * 침대가 하나, 사람이 하나다. 빈 방은 그대로 빈 방으로 둔다 —
+     * 자리가 있는데 아무도 없다는 것도 보여야 할 정보다.
+     */
+    for (let y = 3; y <= H - 2; y++) {
+      put(LODGE.wallLeft, y, 'wall', true);
+      put(LODGE.wallRight, y, 'wall', true);
+    }
+    for (const y of LODGE.splits) {
+      for (let x = 1; x < W - 1; x++) {
+        if (x === EXIT_X) continue; // 복도는 뚫려 있어야 한다
+        put(x, y, 'wall', true);
+      }
+    }
+
+    // 복도. 문 안쪽부터 맨 위 방까지 곧게 낸다
+    for (let y = 3; y <= H - 2; y++) put(EXIT_X, y, 'floor', false);
+
+    LODGE.rooms.forEach((room, i) => {
+      // 방문 — 복도 쪽 벽을 한 칸 연다
+      put(room.side === 'left' ? LODGE.wallLeft : LODGE.wallRight, room.doorY, 'floor', false);
+      // 침대는 바깥쪽 벽에 붙인다
+      put(room.bedX, room.bedY, 'bed', true);
+
+      const who = (ctx.residents ?? [])[i];
+      if (who === undefined) return;
       objects.push({
         id: `resident-${who.id}`,
         type: 'npc',
-        x,
-        y: 4,
+        x: room.standX,
+        y: room.standY,
         sprite: companionSprite(who.archetypeId),
         voice: { kind: 'companion', id: who.archetypeId },
         label: who.name,

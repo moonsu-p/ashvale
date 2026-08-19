@@ -45,6 +45,7 @@ export type Terrain =
   // 건물마다 방이 달라 보이게 하는 세간 (§10 실내)
   | 'shelf'
   | 'board'
+  | 'bed'
   | 'altar'
   | 'pillar';
 

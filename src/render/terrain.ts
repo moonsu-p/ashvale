@@ -559,6 +559,8 @@ export function drawTerrainTile(
       return drawShelf(ctx, ox, oy, tx, ty);
     case 'board':
       return drawBoard(ctx, ox, oy, tx, ty);
+    case 'bed':
+      return drawBed(ctx, ox, oy);
     case 'altar':
       return drawAltar(ctx, ox, oy);
     case 'pillar':
@@ -609,4 +611,27 @@ export function paintMapCanvas(
       drawTerrainTile(ctx, d, x, y);
     }
   }
+}
+
+/** 침대 — 나무 틀에 요와 베개. 방이라는 걸 이것 하나로 말한다 */
+function drawBed(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  ctx.fillStyle = PALETTE.woodLight;
+  px(ctx, ox, oy, S, S);
+
+  // 틀
+  ctx.fillStyle = PALETTE.wood;
+  px(ctx, ox + 2, oy + 1, S - 4, S - 2);
+  ctx.fillStyle = PALETTE.soilDark;
+  px(ctx, ox + 2, oy + 1, S - 4, 1);
+  px(ctx, ox + 2, oy + S - 2, S - 4, 1);
+
+  // 요
+  ctx.fillStyle = PALETTE.clothCool;
+  px(ctx, ox + 3, oy + 5, S - 6, S - 7);
+  ctx.fillStyle = PALETTE.clothDark;
+  px(ctx, ox + 3, oy + 5, S - 6, 1);
+
+  // 베개
+  ctx.fillStyle = PALETTE.linen;
+  px(ctx, ox + 4, oy + 2, S - 8, 3);
 }

@@ -40,5 +40,45 @@ for (const eraIndex of [0, 1, 2, 3, 4, 5]) {
   }
 }
 
+/**
+ * 숙소는 방으로 나뉜다 (§10). 복도에서 **모든 방에 닿아야** 한다 —
+ * 벽 한 칸을 잘못 놓으면 그 방 사람에게 영영 말을 못 건다.
+ */
+{
+  const residents = Array.from({ length: 6 }, (_, i) => ({
+    id: `c${i}`,
+    archetypeId: ['knight', 'hunter', 'mage', 'herbalist', 'envoy', 'wanderer'][i] ?? 'knight',
+    name: `사람${i}`,
+  }));
+  const lodge = buildIndoorMap({ buildingId: 'lodge', eraIndex: 3, residents });
+
+  const seen = new Set<string>([`${INDOOR_ENTRY.x},${INDOOR_ENTRY.y}`]);
+  const queue: { x: number; y: number }[] = [{ x: INDOOR_ENTRY.x, y: INDOOR_ENTRY.y }];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur === undefined) break;
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]] as const) {
+      const x = cur.x + dx;
+      const y = cur.y + dy;
+      const key = `${x},${y}`;
+      if (seen.has(key) || isBlocked(lodge, x, y)) continue;
+      seen.add(key);
+      queue.push({ x, y });
+    }
+  }
+
+  // 사람은 막힌 칸에 선다. 옆에 설 자리가 있어야 말을 건다
+  const people = lodge.objects.filter((o) => o.type === 'npc');
+  const unreachable = people.filter(
+    (p) => ![[0, 1], [0, -1], [1, 0], [-1, 0]].some(([dx, dy]) => seen.has(`${p.x + dx},${p.y + dy}`)),
+  );
+  if (people.length !== 6 || unreachable.length > 0) {
+    ok = false;
+    console.log(`실패 숙소 — 방 ${people.length}개, 못 닿는 방 ${unreachable.length}개`);
+  } else {
+    console.log('OK  숙소 방 6개 모두 복도에서 닿는다');
+  }
+}
+
 console.log(ok ? 'OK  모든 문의 안팎 자리가 걸을 수 있다' : '실패');
 if (!ok) process.exitCode = 1;
