@@ -17,6 +17,7 @@ import type { Rng } from './rng';
 import { relicBonus } from './relics';
 import { escortBonus, escortOf } from './escort';
 import { devotionTotals } from './devotion';
+import { factionEffects } from './factions';
 
 const STAT_LABEL = {
   might: '힘',
@@ -70,6 +71,9 @@ export function rollExplore(state: GameState, region: RegionDef, rng: Rng): Expl
   // 동행 보정 (§7.2 표, §11). 원형마다 다르고, 통찰 보정은 통찰 지역에서만 붙는다
   const escort = escortBonus(escortOf(state), region.stat);
   push(steps, '동행', escort.roll);
+
+  // 세력의 태도 (§7). 마탑이 우호적이면 판정이 붙고, 냉담하면 깎인다
+  push(steps, '세력', factionEffects(state.factions).roll);
 
   push(steps, '유물', bonus.roll);
   push(steps, '첨탑', state.town.buildings['spire'] ?? 0);
@@ -133,7 +137,9 @@ export function resolveExplore(
   const cut = Math.min(
     100,
     escort.anyHpPercent +
-      (roll.grade === 'crisis' ? escort.crisisHpPercent + devoted.crisisHpPercent : 0),
+      (roll.grade === 'crisis'
+        ? escort.crisisHpPercent + devoted.crisisHpPercent + factionEffects(state.factions).crisisHpPercent
+        : 0),
   );
   if (cut > 0) hpLoss = Math.round(hpLoss * (1 - cut / 100));
 

@@ -92,6 +92,28 @@ export const FACTION_LABEL = {
   tower: '마탑',
 } as const;
 
+/**
+ * 세력의 태도 (§7).
+ *
+ * 지금까지 평판은 **오르기만 하고 아무것도 하지 않았다** — 의뢰 하나의
+ * 조건으로만 쓰였다. 그러니 어느 세력을 편들든 결과가 같고, 세력이
+ * 있으나 마나였다.
+ *
+ * 문턱을 넘으면 그 세력이 편의를 봐주고, 반대로 내려가면 불편해진다.
+ * **마탑과 숲의 부족은 서로 반대다**(FACTION_OPPOSED) — 한쪽을 올리면
+ * 다른 쪽이 깎이므로 넷을 다 챙길 수는 없다. 그게 갈래가 되는 자리다.
+ *
+ * 되돌릴 수 있게 둔다. 평판은 다시 오르내리므로 덫이 아니다.
+ */
+export const FACTION_STANDING = { boon: 40, grudge: -40 } as const;
+
+export const FACTION_EFFECT = {
+  guild: { boonText: '주간 거래 한도 +30', grudgeText: '주간 거래 한도 -20' },
+  oath: { boonText: '위기 기력 손실 -20%', grudgeText: '위기 기력 손실 +20%' },
+  grove: { boonText: '주간 식량 +3', grudgeText: '주간 식량 -2' },
+  tower: { boonText: '탐사 판정 +1', grudgeText: '탐사 판정 -1' },
+} as const;
+
 export const FACTION_MIN = -100;
 export const FACTION_MAX = 100;
 

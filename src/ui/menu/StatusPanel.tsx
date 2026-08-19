@@ -16,6 +16,9 @@ import type { ResourceId, StatId } from '@/types/game';
 import { useGameStore } from '@/store/useGameStore';
 import { computeProduction } from '@/systems/economy';
 import { devotionLines, devotionTotals } from '@/systems/devotion';
+import { factionStanding, standingLines } from '@/systems/factions';
+import { FACTION_LABEL, FACTION_STANDING } from '@/data/relationships';
+import type { FactionId } from '@/types/game';
 import { xpToNext } from '@/data/levels';
 import { SKILLS } from '@/data/skills';
 import { RELICS } from '@/data/content/world-content';
@@ -38,6 +41,7 @@ const RESOURCE_LABEL: Record<ResourceId, string> = {
   gold: '금화',
 };
 const RESOURCE_ORDER: ResourceId[] = ['wood', 'stone', 'food', 'gold'];
+const FACTION_ORDER: FactionId[] = ['guild', 'oath', 'grove', 'tower'];
 
 /** 부호를 붙인다. 늘어나는지 줄어드는지가 한눈에 보여야 한다 */
 function signed(n: number): string {
@@ -65,6 +69,7 @@ export function StatusPanel() {
   const season = seasonOf(state.world.week);
   const devoted = devotionTotals(state);
   const devotions = devotionLines(state);
+  const standings = standingLines(state.factions);
   const production = computeProduction(state.town.buildings, season, devoted.weekly);
   const power = Object.values(state.town.buildings).reduce((sum, n) => sum + n, 0);
   const nextEra = ERAS.find((era) => era.power > power);
@@ -197,6 +202,31 @@ export function StatusPanel() {
           </p>
         </section>
       )}
+
+      <section>
+        <h3 className="mb-1 text-[13px] font-medium">세력</h3>
+        {FACTION_ORDER.map((id) => (
+          <Row
+            key={id}
+            label={FACTION_LABEL[id]}
+            value={`${state.factions[id]} · ${factionStanding(state.factions[id])}`}
+          />
+        ))}
+        {standings.length === 0 ? (
+          <p className="mt-1 text-[11px] text-inkSoft">
+            아직 걸린 것이 없다. 평판 {FACTION_STANDING.boon} 을 넘으면 편의를 봐준다.
+          </p>
+        ) : (
+          standings.map((st) => (
+            <p key={st.name} className={`text-[11px] ${st.good ? 'text-grassDark' : 'text-blood'}`}>
+              {st.name} — {st.text}
+            </p>
+          ))
+        )}
+        <p className="mt-1 text-[11px] text-inkSoft">
+          마탑과 숲의 부족은 서로 반대다. 넷을 다 챙길 수는 없다.
+        </p>
+      </section>
 
       <section>
         <h3 className="mb-1 text-[13px] font-medium">마을</h3>

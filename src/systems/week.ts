@@ -26,6 +26,7 @@ import { collapse, shouldCollapse } from './collapse';
 import { rollRival, type RivalPick } from './rivals';
 import { runReferrals } from './roster';
 import { devotionTotals } from './devotion';
+import { factionEffects } from './factions';
 import { getArchetype } from '@/data/archetypes';
 import { COLLAPSE_TEXT as CHRONICLE_TEXT_COLLAPSE } from '@/data/collapse';
 
@@ -76,7 +77,11 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
 
   // ── 2. 자원 생산 − 식량 소비 (계절 보정) ──────────────
   // 최대 호감이 남긴 주간 보탬을 함께 넘긴다 (§7 헌신)
-  const production = computeProduction(next.town.buildings, season, devotionTotals(next).weekly);
+  // 헌신과 세력의 태도를 함께 넘긴다 (§7)
+  const boons = { ...devotionTotals(next).weekly };
+  const grove = factionEffects(next.factions).weeklyFood;
+  if (grove !== 0) boons.food = (boons.food ?? 0) + grove;
+  const production = computeProduction(next.town.buildings, season, boons);
   next = { ...next, resources: applyProduction(next.resources, production) };
 
   const foodIn = production.gross.food + production.season.food;

@@ -7,6 +7,7 @@
 
 import type { CompanionRecord, GameState, ResourceId } from '@/types/game';
 import { getArchetype } from '@/data/archetypes';
+import { factionEffects } from './factions';
 import { GIFTS, RESOURCE_GIFT_CATEGORY, getGift } from '@/data/gifts';
 import {
   PATRON_SELL_BONUS,
@@ -24,7 +25,9 @@ export function marketLevel(state: GameState): number {
 
 /** 주간 거래 한도 = 시장 레벨 × 30 금화 상당 */
 export function weeklyLimit(state: GameState): number {
-  return marketLevel(state) * WEEKLY_LIMIT_PER_LEVEL;
+  // 상인 길드의 태도가 한도를 늘리거나 줄인다 (§7)
+  const base = marketLevel(state) * WEEKLY_LIMIT_PER_LEVEL;
+  return Math.max(0, base + factionEffects(state.factions).tradeLimit);
 }
 
 export function rateFor(resource: ResourceId) {
