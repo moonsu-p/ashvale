@@ -44,7 +44,7 @@ const FALLBACK: RegionLook = { floor: 'grass', accent: 'grassTuft', block: 'tree
  * `escort` 가 true 면 **동행 노드**를 하나 더 놓는다 (§11 — 동행자가 있을 때만
  * 나타난다). 전용 서술과 호감이 붙는 자리다. 빼먹고 있었다.
  */
-export function buildRegionMap(regionId: string, escort = false): TileMapData {
+export function buildRegionMap(regionId: string, escort = false, visit = 0): TileMapData {
   const size = W * H;
   const look = LOOK[regionId] ?? FALLBACK;
 
@@ -59,8 +59,17 @@ export function buildRegionMap(regionId: string, escort = false): TileMapData {
     collision[at(x, y)] = solid;
   };
 
-  // 지역마다 늘 같은 지도가 나오게 시드를 고정한다
-  const rng = createRng(`region:${regionId}`);
+  /**
+   * 갈 때마다 지형이 새로 뽑힌다.
+   *
+   * 예전에는 `region:${regionId}` 하나로 고정이라 속삭이는 숲은 백 번을 가도
+   * 같은 모양이었다 — 두 번째부터는 길을 외워서 표식만 찍고 나온다.
+   * `visit` 이 들어가면 갈 때마다 다른 지도가 된다.
+   *
+   * **그 방문 안에서는 고정이다.** visit 은 그 탐사의 주차라, 걷다 새로고침해도
+   * 지형이 바뀌지 않는다. 매번 난수를 굴리면 그 자리에서 지도가 흔들린다.
+   */
+  const rng = createRng(`region:${regionId}:${visit}`);
 
   for (let i = 0; i < size; i++) {
     if (rng.chance(0.14)) ground[i] = look.accent;

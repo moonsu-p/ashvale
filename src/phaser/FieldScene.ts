@@ -189,6 +189,8 @@ export class FieldScene extends Phaser.Scene {
       // 마을에 서 있을 인물 (§7.6). 동행 중인 사람과 숙소 거주자는 빠진다
       // 동행 노드는 데려갔을 때만 생긴다 (§11)
       escorted: state.escort !== null,
+      // 갈 때마다 새 지형. 그 탐사 안에서는 주차가 안 바뀌므로 고정이다 (§11)
+      visit: state.world.turn,
       folk: townFolk(state)
         .filter((c) => !isOut(state, c.id))
         .map((c) => ({ id: c.id, archetypeId: c.archetypeId, name: displayName(c) })),

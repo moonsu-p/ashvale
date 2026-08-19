@@ -1260,6 +1260,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eraIndex: state.world.eraIndex,
       buildings: state.town.buildings,
       escorted: state.escort !== null,
+      visit: state.world.turn,
     }).objects.find((o) => o.id === nodeId);
 
     if (here?.nodeKind === 'event') {
@@ -1286,6 +1287,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eraIndex: state.world.eraIndex,
       buildings: state.town.buildings,
       escorted: state.escort !== null,
+      visit: state.world.turn,
     });
     const node = map.objects.find((o) => o.id === nodeId);
     const escortNode = node?.nodeKind === 'escort';

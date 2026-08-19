@@ -16,8 +16,18 @@ const ids = only === undefined ? REGIONS.map((r) => r.id) : [only];
 
 let allOk = true;
 
+/**
+ * 지형은 갈 때마다 새로 뽑힌다 (§11). 그러니 **한 장만 봐서는 모자란다** —
+ * 어떤 뽑기가 나와도 표식에 닿아야 한다. 방문 회차를 여러 개 돌려 본다.
+ */
+const VISITS = 60;
+
 for (const id of ids) {
-  const map = buildRegionMap(id);
+ let worst: string | null = null;
+ let checked = 0;
+
+ for (let visit = 0; visit < VISITS; visit++) {
+  const map = buildRegionMap(id, visit % 2 === 1, visit);
   const nodes = map.objects.filter((o) => o.nodeKind !== undefined);
 
   // 입구에서 막히지 않은 칸을 전부 훑는다
@@ -42,17 +52,19 @@ for (const id of ids) {
   }
 
   const unreachable = nodes.filter((n) => !seen.has(`${n.x},${n.y}`));
-  const ok = unreachable.length === 0;
-  if (!ok) allOk = false;
-
-  console.log(
-    `${ok ? 'OK ' : '실패'} ${id.padEnd(8)} 노드 ${nodes.length}개  ` +
-      `걸을 수 있는 칸 ${seen.size}/${map.width * map.height}  ` +
-      nodes.map((n) => `${n.nodeKind === 'loot' ? '전리품' : '사건'}(${n.x},${n.y})`).join(' '),
-  );
-  if (!ok) {
-    console.log(`   닿지 않는 노드: ${unreachable.map((n) => `(${n.x},${n.y})`).join(' ')}`);
+  checked += nodes.length;
+  if (unreachable.length > 0 && worst === null) {
+    worst = `${visit}회차 — ${unreachable.map((n) => `(${n.x},${n.y})`).join(' ')}`;
   }
+ }
+
+ if (worst !== null) allOk = false;
+ console.log(
+   `${worst === null ? 'OK ' : '실패'} ${id.padEnd(8)} ` +
+     `${VISITS}가지 지형 · 노드 ${checked}개 전부 확인` +
+     (worst === null ? '' : `
+   닿지 않는 노드: ${worst}`),
+ );
 }
 
 if (!allOk) process.exitCode = 1;

@@ -35,6 +35,11 @@ export interface MapContext extends TownContext {
   escorted?: boolean;
   /** 이번 주 이 건물에 나와 있는 인물 (§7.6 나들이) */
   visitor?: { id: string; archetypeId: string; name: string };
+  /**
+   * 몇 번째 나들이인가. 지역 지형을 뽑는 데 쓴다 (§11).
+   * 이 값이 열쇠에 들어가야 갈 때마다 새 지도가 나온다.
+   */
+  visit?: number;
 }
 
 const cache = new Map<string, TileMapData>();
@@ -50,7 +55,8 @@ export function mapKey(ctx: MapContext): string {
     return `${ctx.mapId}:${ctx.eraIndex}:${who}:${guest}`;
   }
   if (regionIdFromMap(ctx.mapId) !== null) {
-    return ctx.escorted === true ? `${ctx.mapId}:escort` : ctx.mapId;
+    const trip = ctx.visit ?? 0;
+    return `${ctx.mapId}:${trip}${ctx.escorted === true ? ':escort' : ''}`;
   }
   return ctx.mapId;
 }
@@ -67,7 +73,7 @@ export function loadMap(ctx: MapContext): TileMapData {
   if (ctx.mapId === 'town') {
     map = buildTownMap(ctx);
   } else if (regionId !== null) {
-    map = buildRegionMap(regionId, ctx.escorted === true);
+    map = buildRegionMap(regionId, ctx.escorted === true, ctx.visit ?? 0);
   } else if (indoorOf !== null) {
     map = buildIndoorMap({
       buildingId: indoorOf,
