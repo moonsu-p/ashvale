@@ -12,6 +12,7 @@ import { eraName } from '@/data/eras';
 import { ESCORT_MIN_AFFINITY } from '@/data/relationships';
 import { displayName } from '@/systems/relationships';
 import { escortOf, escortText } from '@/systems/escort';
+import { askerName, fillRequest, requestsOf } from '@/systems/requests';
 
 const STAT_LABEL = { might: '힘', agility: '민첩', insight: '통찰', will: '의지' } as const;
 
@@ -123,6 +124,8 @@ export function RegionSelect() {
     else enter(regionId);
   };
 
+  const asks = requestsOf(state);
+
   const restLeft = Math.max(0, state.hero.restUntilTurn - state.world.turn);
   const resting = restLeft > 0;
   const heal = computeHeal(state);
@@ -176,6 +179,24 @@ export function RegionSelect() {
           </p>
         )}
 
+        {/*
+          이번 주의 부탁 (§7.3). **고르기 전에 보여야 한다** —
+          한 주에 한 곳만 가므로 둘이 다른 데를 부탁하면 하나는 못 들어준다.
+          그 갈등이 이 화면에서 보여야 고민이 생긴다.
+        */}
+        {asks.length > 0 && (
+          <div className="mb-2 rounded border border-gold/60 bg-paperDim px-2 py-1">
+            <div className="text-[11px] font-medium text-gold">
+              이번 주 부탁{asks.length > 1 ? ' — 하나만 들어줄 수 있다' : ''}
+            </div>
+            {asks.map((req) => (
+              <p key={req.companionId} className="text-[11px] leading-snug">
+                <b>{askerName(state, req)}</b> · {fillRequest(state, req, 'ask')}
+              </p>
+            ))}
+          </div>
+        )}
+
         <EscortPicker />
 
 
@@ -199,6 +220,11 @@ export function RegionSelect() {
                         : `난이도 ${region.difficulty} · ${STAT_LABEL[region.stat]}`}
                     </span>
                   </div>
+                  {!locked && asks.some((a) => a.regionId === region.id) && (
+                    <div className="text-[11px] text-gold">
+                      {askerName(state, asks.find((a) => a.regionId === region.id)!)}가 부탁한 곳
+                    </div>
+                  )}
                   {!locked && (
                     <div className="text-[11px] tabular-nums text-inkSoft">
                       위험도 {region.risk} · 전리품 {lootText(region.loot)}

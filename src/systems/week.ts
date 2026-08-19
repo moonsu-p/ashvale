@@ -16,7 +16,11 @@ import { CHRONICLE_TEXT } from '@/data/chronicle';
 import { applyProduction, computeHeal, computeProduction } from './economy';
 import { eraFor, townPower } from './eras';
 import { appendEntries, makeEntry } from './chronicle';
-import { queueApproaches, displayName } from './relationships';
+import { queueApproaches, displayName, withAffinity } from './relationships';
+import { requestsOf } from './requests';
+import { REQUEST_AFFINITY } from '@/data/content/requests';
+import { regionName } from '@/data/regions';
+import { applyToken } from './korean';
 import { applyEvent, rollEvent } from './worldEvents';
 import { collapse, shouldCollapse } from './collapse';
 import { rollRival, type RivalPick } from './rivals';
@@ -34,6 +38,11 @@ export interface WeekInput {
     resources?: Partial<Record<'wood' | 'stone' | 'food' | 'gold', number>>;
     xp?: number;
   };
+  /**
+   * 이번 주에 나간 지역 (§11). 부탁을 들어줬는지 여기서 갈린다.
+   * 쉬었으면 비어 있다 — 아무 부탁도 못 들어준 것이다.
+   */
+  wentTo?: string;
 }
 
 export interface WeekResult {
@@ -83,6 +92,27 @@ export function endWeek(state: GameState, input: WeekInput, _rng: Rng): WeekResu
   if (healed > 0) {
     next = { ...next, hero: { ...next.hero, hp: next.hero.hp + healed } };
     lines.push(CHRONICLE_TEXT.heal(healed));
+  }
+
+  /**
+   * 주간 부탁 정산 (§7.3).
+   *
+   * 한 주에 한 곳만 갈 수 있으니 둘이 다른 데를 부탁하면 하나는 못 들어준다.
+   * **주차를 올리기 전에 본다** — 부탁은 이번 주의 것이다.
+   */
+  for (const req of requestsOf(next)) {
+    const who = next.companions[req.companionId];
+    if (who === undefined) continue;
+
+    const kept = input.wentTo === req.regionId;
+    const delta = kept ? REQUEST_AFFINITY.done : REQUEST_AFFINITY.missed;
+    next = {
+      ...next,
+      companions: { ...next.companions, [who.id]: withAffinity(who, delta) },
+    };
+    lines.push(
+      `${displayName(who)}: ${applyToken(req.line[kept ? 'done' : 'missed'], '{지역}', regionName(req.regionId))}`,
+    );
   }
 
   // ── 4. 관계 갱신 — 호감 반영, 다가옴 판정 (§7.3) ──────

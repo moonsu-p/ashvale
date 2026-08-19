@@ -1133,7 +1133,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (state.world.turn < state.hero.restUntilTurn) return;
 
     // 1. 1주 소모 (§11). 마을 활동은 시간을 쓰지 않지만 나가는 것은 쓴다
-    const weekResult = endWeek(state, {}, createRng(seedOf(state) + state.world.turn));
+    // 어디로 나가는지 넘긴다 — 부탁을 들어줬는지가 여기서 갈린다 (§7.3)
+    const weekResult = endWeek(state, { wentTo: regionId }, createRng(seedOf(state) + state.world.turn));
     const afterWeek = weekResult.state;
 
     // 2. 지역 맵 진입
