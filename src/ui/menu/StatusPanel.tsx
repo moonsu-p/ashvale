@@ -25,6 +25,8 @@ import { RELICS } from '@/data/content/world-content';
 import { ERAS, eraName } from '@/data/eras';
 import { SEASON_LABEL, seasonOf } from '@/data/seasons';
 import { TOUCH_MIN } from '@/data/layout';
+import { activeQuest, isComplete, offerFor, progressText } from '@/systems/quests';
+import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 
 const STAT_LABEL: Record<StatId, string> = {
   might: '힘',
@@ -74,6 +76,12 @@ export function StatusPanel() {
   const power = Object.values(state.town.buildings).reduce((sum, n) => sum + n, 0);
   const nextEra = ERAS.find((era) => era.power > power);
   const held = RELICS.filter((relic) => hero.relics.includes(relic.id));
+  const active = activeQuest(state);
+  // 지금 맡을 수 있는 의뢰. 하나를 맡고 있으면 offerFor 가 비어 나온다
+  const offers = Object.keys(PATRON_VOICES)
+    .map((id) => offerFor(state, id))
+    .filter((q): q is NonNullable<typeof q> => q !== null);
+  const patronName = (id: string) => PATRON_VOICES[id]?.name ?? id;
 
   return (
     <div className="space-y-4">
@@ -202,6 +210,53 @@ export function StatusPanel() {
           </p>
         </section>
       )}
+
+      {/*
+        의뢰가 어디에도 안 보였다.
+        새 인물이 오는 길이 둘인데(의뢰 · 소개) 의뢰는 회관에 찾아가 받고
+        조건을 채우고 다시 보고해야 한다. 그 흐름이 화면에 없으면
+        전설기까지 가도 인물이 셋에서 멈춘다 — 실제로 그랬다.
+      */}
+      <section>
+        <h3 className="mb-1 text-[13px] font-medium">
+          의뢰 <span className="text-[11px] text-inkSoft">· 새 인물이 오는 길</span>
+        </h3>
+
+        {active !== null ? (
+          <>
+            <Row
+              label={active.name}
+              value={
+                isComplete(state, active)
+                  ? '조건 충족 — 보고하라'
+                  : `${active.goalText} · ${progressText(state, active)}`
+              }
+            />
+            <p className={`mt-1 text-[11px] ${isComplete(state, active) ? 'text-gold' : 'text-inkSoft'}`}>
+              {isComplete(state, active)
+                ? `회관에서 ${patronName(active.patronId)}에게 보고하면 끝난다.`
+                : '조건을 채우면 회관에서 보고한다.'}
+            </p>
+          </>
+        ) : offers.length > 0 ? (
+          <>
+            {offers.map((q) => (
+              <Row
+                key={q.id}
+                label={`${patronName(q.patronId)} · ${q.name}`}
+                value={q.reward.kind === 'companion' ? '보상 — 사람이 온다' : q.goalText}
+              />
+            ))}
+            <p className="mt-1 text-[11px] text-gold">
+              회관에 가서 말을 걸면 맡을 수 있다. 한 번에 하나씩.
+            </p>
+          </>
+        ) : (
+          <p className="text-[11px] text-inkSoft">
+            지금 받을 의뢰가 없다. 시대가 오르면 의뢰인이 더 온다.
+          </p>
+        )}
+      </section>
 
       <section>
         <h3 className="mb-1 text-[13px] font-medium">세력</h3>

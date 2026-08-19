@@ -48,8 +48,8 @@ export const BUILDINGS: BuildingDef[] = [
     name: '농장',
     unlockEra: 0,
     baseCost: { wood: 15, gold: 5 },
-    yieldPerLevel: { food: 3 },
-    effectText: '식량 +3',
+    yieldPerLevel: { food: 5 },
+    effectText: '식량 +5',
     indoor: false,
   },
   {
@@ -158,7 +158,23 @@ export function wallStage(level: number): WallStage {
 }
 
 /** 주간 식량 소비 = 인구 × 1 (§10) */
-export const FOOD_PER_POP = 1;
+/**
+ * 인구 한 명당 주간 식량 소비.
+ *
+ * §10 은 `인구 × 1` 로 적었는데 **그 값으로는 굶지 않을 수가 없다.**
+ * 인구 = 전 건물 레벨의 합인데 식량은 농장만 낸다. 그래서 건물을 골고루
+ * 올리면 어느 시대든 마이너스고, 전설기에는 봄에도 −50 이었다.
+ * 살아남는 길은 농장만 21까지 올리고 나머지를 1 로 두는 기형 하나뿐이었다.
+ *
+ * 0.4 로 내리고 농장 산출을 3 → 5 로 올렸다. **연간으로 맞췄다** —
+ * 봄만 보면 안 된다. 여름에는 식량 보정이 아예 없어서 0.5 로도 왕국기부터
+ * 연간 마이너스였다.
+ *
+ * 지금은 골고루 올려도 연 120~192 로 버티고, 농장에 두 배 넣으면
+ * 연 400~1500 이 된다. 겨울은 여전히 마이너스다 —
+ * 가을(+50%)에 쌓아 두고 버티는 철이어야 한다.
+ */
+export const FOOD_PER_POP = 0.4;
 
 /** 신전 레벨당 주간 HP 회복 (§10). 주 종료 3단계 '회복' 이 읽는다 */
 export const SHRINE_HEAL_PER_LEVEL = 2;

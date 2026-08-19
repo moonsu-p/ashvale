@@ -67,7 +67,8 @@ export function computeProduction(
     if (rate !== undefined) seasonAdj[r] = Math.round(gross[r] * rate);
   }
 
-  const foodConsumed = townPower(buildings) * FOOD_PER_POP;
+  // 인구당 소비가 소수라 올림한다. 내림하면 작은 마을이 공짜로 먹는다
+  const foodConsumed = Math.ceil(townPower(buildings) * FOOD_PER_POP);
 
   const net = empty();
   for (const r of RESOURCES) net[r] = gross[r] + seasonAdj[r] + (devotion[r] ?? 0);
