@@ -49,6 +49,7 @@ import { shiftFaction } from '@/systems/factions';
 import { buildConfessionScript, buildEventScript } from '@/systems/dialogue';
 import { answerConfession, shouldConfess } from '@/systems/confession';
 import { addCompanion, residentsOf, townFolk } from '@/systems/roster';
+import { buildSceneScripts, nextFieldScene, nextRomanceScene } from '@/systems/scenes';
 import { buildRivalScript, rivalDeltas } from '@/systems/rivals';
 import { RIVAL_AFFINITY } from '@/data/content/rival-events';
 import type { RivalPick } from '@/systems/rivals';
@@ -165,6 +166,14 @@ interface GameStore {
 
   /** 대화 레이어. 열려 있으면 필드 입력이 멈춘다 */
   dialogue: DialogueState | null;
+  /**
+   * 이어서 틀 대본 (§8.3).
+   *
+   * 여러 마디로 된 장면은 마디마다 대본이 하나다. 하나가 닫힐 때
+   * 여기 남은 것이 있으면 곧장 다음 마디가 열린다 —
+   * 그래야 대화가 한마디로 끊기지 않는다.
+   */
+  dialogueQueue: DialogueScript[];
   openDialogue: (script: DialogueScript) => void;
   /** A 또는 대사창 탭. §8.3 의 상태 기계를 한 칸 민다 */
   advanceDialogue: () => void;
@@ -343,6 +352,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   toast: null,
   hint: null,
   dialogue: null,
+  dialogueQueue: [],
   buildPanel: null,
   shop: false,
   regionEvent: null,
@@ -466,9 +476,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     play('talk');
 
-    // 마무리 대사를 보고 있었으면 여기서 닫는다
+    // 마무리 대사를 보고 있었으면 여기서 닫는다 — 이어질 마디가 있으면 그리로
     if (d.reply !== null) {
-      set({ dialogue: null });
+      get().closeDialogue();
       return;
     }
 
@@ -483,7 +493,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    set({ dialogue: null });
+    /**
+     * 선택지 없이 줄이 끝났다. **여기서 그냥 닫으면 안 된다** —
+     * 여러 마디짜리 장면이 첫 마디에서 끊긴다. 큐를 거친다.
+     */
+    get().closeDialogue();
   },
 
   /**
@@ -504,7 +518,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const option = d.script.choices?.find((c) => c.id === optionId);
     if (option === undefined) {
-      set({ dialogue: null });
+      get().closeDialogue();
       return;
     }
 
@@ -658,9 +672,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       void get().save('relationship');
     }
 
-    // 마무리 대사가 없으면 고르는 즉시 닫힌다
+    // 마무리 대사가 없으면 고르는 즉시 닫힌다. 이어질 마디는 큐가 챙긴다
     if (option.reply === '') {
-      set({ dialogue: null, approaching: null });
+      set({ approaching: null });
+      get().closeDialogue();
       return;
     }
     /**
@@ -681,7 +696,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   closeDialogue() {
-    set({ dialogue: null });
+    /**
+     * 이어질 마디가 남아 있으면 곧장 다음을 연다 (§8.3).
+     * 여기서 그냥 닫으면 여러 마디짜리 장면이 첫 마디에서 끊긴다.
+     */
+    const queue = get().dialogueQueue;
+    const next = queue[0];
+    if (next !== undefined) {
+      set({
+        dialogue: { script: next, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null },
+        dialogueQueue: queue.slice(1),
+      });
+      return;
+    }
+    set({ dialogue: null, dialogueQueue: [] });
   },
 
   askName(companionId) {
@@ -743,12 +771,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // 고백이 먼저다 (§7.4). 벗에 닿으면 인물이 그 말을 하러 온다
     const req = { townName: state.town.name, characterName: companion.name };
+    if (shouldConfess(companion, state.world.turn)) {
+      const script = buildConfessionScript(companion, req);
+      if (script !== null) {
+        set({ dialogue: { script, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null } });
+        return;
+      }
+    }
+
+    /**
+     * 연애 장면 (§7.4). 여러 마디로 이어진다 —
+     * 한마디 하고 닫히던 것이 관계가 안 쌓이는 원인이었다.
+     * 연심 트랙에서만 열린다. 우애로 굳은 사이에는 오지 않는다.
+     */
+    const scene = nextRomanceScene(companion);
+    if (scene !== null) {
+      const scripts = buildSceneScripts(state, companion, scene);
+      const first = scripts[0];
+      if (first !== undefined) {
+        set({
+          dialogue: { script: first, lineIndex: 0, phase: 'typing', reply: null, revealSlot: null },
+          dialogueQueue: scripts.slice(1),
+        });
+        return;
+      }
+    }
+
     const tier = pendingTier(companion);
-    const script = shouldConfess(companion, state.world.turn)
-      ? buildConfessionScript(companion, req)
-      : tier === null
-        ? null
-        : buildEventScript(companion, tier, req);
+    const script = tier === null ? null : buildEventScript(companion, tier, req);
     if (script === null) {
       set({ approaching: null });
       return;
@@ -1216,6 +1266,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const escortNode = node?.nodeKind === 'escort';
 
     const withMe = escortOf(state);
+
+    /**
+     * 동행 노드는 **그 사람과의 한 장면**이다 (§11 동행).
+     *
+     * 한 줄 서술로 끝나서 데려간 사람과 아무 일도 없었다.
+     * 마을 대화와 같은 방식으로 연다 — 초상이 서고, 말이 오가고, 고른다.
+     * 볼 장면이 남아 있지 않으면 예전대로 서술 한 줄로 간다.
+     */
+    if (escortNode && withMe !== null) {
+      const scene = nextFieldScene(withMe);
+      if (scene !== null) {
+        const scripts = buildSceneScripts(state, withMe, scene);
+        const first = scripts[0];
+        if (first !== undefined) {
+          set({
+            state: {
+              ...state,
+              world: {
+                ...state.world,
+                clearedNodes: [...state.world.clearedNodes, nodeId],
+              },
+            },
+            dialogue: {
+              script: first,
+              lineIndex: 0,
+              phase: 'typing',
+              reply: null,
+              revealSlot: null,
+            },
+            dialogueQueue: scripts.slice(1),
+          });
+          play('talk');
+          void get().save('relationship');
+          return;
+        }
+      }
+    }
+
     const text = REGION_TEXT[regionId];
     const raw =
       escortNode && withMe !== null

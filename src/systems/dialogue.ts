@@ -10,6 +10,7 @@ import type { CompanionRecord } from '@/types/game';
 import type { DialogueOption, DialogueScript, SpeakerRef } from '@/types/dialogue';
 import { toneFor } from './relationships';
 import { COMPANION_VOICES, type AffinityTier } from '@/data/content/companion-dialogue';
+import { addressOf, talkLinesOf } from './voice';
 import { PATRON_VOICES } from '@/data/content/patron-dialogue';
 import { DIALOGUE_EVENTS } from '@/data/content/dialogue-events';
 import { MAX_CHOICES } from '@/data/dialogue';
@@ -44,7 +45,8 @@ export function fillTokens(text: string, ctx: DialogueContext): string {
 function talkLine(archetypeId: string, tier: AffinityTier, index: number): string | null {
   const voice = COMPANION_VOICES[archetypeId];
   if (voice === undefined) return null;
-  const lines = voice.talk[tier];
+  // 덧입힘이 있으면 그쪽이 먼저다 (systems/voice.ts)
+  const lines = talkLinesOf(archetypeId, tier);
   if (lines.length === 0) return null;
   return lines[index % lines.length] ?? null;
 }
@@ -79,7 +81,7 @@ export function buildCompanionScript(
     townName: req.townName,
     characterName:
       req.characterName !== undefined && req.characterName !== '' ? req.characterName : voice.label,
-    address: voice.address[tier],
+    address: addressOf(archetypeId, tier),
   };
 
   const lines: string[] = [];
@@ -116,7 +118,7 @@ export function buildEventScript(
   const ctx: DialogueContext = {
     townName: req.townName,
     characterName: name,
-    address: voice.address[tone],
+    address: addressOf(companion.archetypeId, tone),
   };
 
   const choices: DialogueOption[] = event.choices.slice(0, MAX_CHOICES).map((c, i) => ({
@@ -165,7 +167,7 @@ export function buildConfessionScript(
   const ctx: DialogueContext = {
     townName: req.townName,
     characterName: name,
-    address: voice.address[tone],
+    address: addressOf(companion.archetypeId, tone),
   };
 
   const answers: { id: 'accept' | 'hold' | 'decline'; text: string }[] = [
